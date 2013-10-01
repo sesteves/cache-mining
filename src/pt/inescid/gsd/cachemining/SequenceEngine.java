@@ -10,15 +10,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-public class SequenceCache {
+public class SequenceEngine {
+
+    public final static String SEPARATOR = ":";
 
     private static final String filename = "sequences.txt";
 
     private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
 
-    private Map<String, CacheEntry> cache = new HashMap<String, CacheEntry>();
-
-    private void loadMetadata() {
+    private void loadSequences() {
 
         try {
             BufferedReader br = new BufferedReader(new FileReader(filename));
@@ -37,11 +37,11 @@ public class SequenceCache {
             }
             br.close();
 
-            // String str = "";
-            // for (String s : sequences.get("WAREHOUSE:2:h")) {
-            // str += s + " - ";
-            // }
-            // System.out.println("Sequence -> " + str);
+            String str = "";
+            for (String s : sequences.get("WAREHOUSE:2:h")) {
+                str += s + " - ";
+            }
+            System.out.println("Sequence -> " + str);
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -50,23 +50,13 @@ public class SequenceCache {
         }
     }
 
-    public CacheEntry get(String key) {
-        CacheEntry entry = cache.get(key);
-
-        return null;
-    }
-
-    public void put(String key, CacheEntry entry) {
-        cache.put(key, entry);
-    }
-
     public Set<String> getSequence(String key) {
         return sequences.get(key);
     }
 
     public static void main(String[] args) {
-        SequenceCache cache = new SequenceCache();
-        cache.loadMetadata();
-
+        SequenceEngine engine = new SequenceEngine();
+        engine.loadSequences();
     }
+
 }

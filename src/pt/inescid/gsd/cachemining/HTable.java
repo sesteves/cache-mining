@@ -1,4 +1,5 @@
 package pt.inescid.gsd.cachemining;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -31,9 +32,13 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 public class HTable implements HTableInterface {
 
+    private static boolean IS_MONITORING = false;
+
     private static Map<String, org.apache.hadoop.hbase.client.HTable> htables = new HashMap<String, org.apache.hadoop.hbase.client.HTable>();
 
-    private static SequenceCache seqCache = new SequenceCache();
+    private static Cache<Result> cache = new Cache<Result>();
+
+    private static SequenceEngine sequenceEngine = new SequenceEngine();
 
     private org.apache.hadoop.hbase.client.HTable htable;
     private File file;
@@ -129,76 +134,75 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
+        if (IS_MONITORING) {
+            Result result = htable.get(get);
+            FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+            BufferedWriter bw = new BufferedWriter(fw);
+
+            long ts = System.currentTimeMillis();
+            Set<byte[]> families = get.getFamilyMap().keySet();
+            for (byte[] f : families) {
+                NavigableSet<byte[]> set = get.getFamilyMap().get(f);
+                for (byte[] q : set) {
+                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f) + ":"
+                            + Bytes.toString(q));
+                    bw.newLine();
+                }
+            }
+            bw.close();
+            return result;
+        }
 
         Result result = null;
-
         // build key
-        String key = "";
-        // get
+        final String tableName = this.tableName;
+        final String row = Bytes.toString(get.getRow());
+        String colFamily = null;
+        String colQualifier = null;
+        Set<byte[]> families = get.familySet();
+        for (byte[] family : families) {
+            colFamily = Bytes.toString(family);
+            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
+            for (byte[] qualifier : qualifiers) {
+                colQualifier = Bytes.toString(qualifier);
+                break;
+            }
+            // FIXME
+            break;
+        }
+        String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
 
-        CacheEntry entry = seqCache.get(key);
+        CacheEntry<Result> entry = cache.get(key);
         if (entry == null) {
-
-            Set<String> sequence = seqCache.getSequence(key);
-
+            Set<String> sequence = sequenceEngine.getSequence(key);
             if (sequence == null) {
-
+                result = htable.get(get);
             } else {
-                // batches updates to the same tables
+                // batch updates to the same tables
                 Map<String, Get> gets = new HashMap<String, Get>();
                 for (String container : sequence) {
 
                     String[] elements = container.split(":");
-                    String tableName = elements[0];
+                    String containerTableName = elements[0];
+                    String containerColFamily = elements[1];
+                    String containerColQualifier = elements[2];
 
-                    Get g = gets.get(tableName);
+                    Get g = gets.get(containerTableName);
                     if (g == null) {
-                        g = new Get();
+                        g = new Get(get.getRow());
                     }
-                    get.addFamily(Bytes.toBytes(""));
-                    gets.put(tableName, g);
+                    g.addColumn(Bytes.toBytes(containerColFamily), Bytes.toBytes(containerColQualifier));
+                    gets.put(containerTableName, g);
                 }
-
-                for(String k : gets.keySet()) {
-                   seqCache.put(k, new CacheEntry(htables.get(k).get(gets.get(k)));
-                }
-                
-
-            }
-
-            for (byte[] f : families) {
-                NavigableSet<byte[]> set = get.getFamilyMap().get(f);
-                for (byte[] q : set) {
+                for (String k : gets.keySet()) {
+                    cache.put(k, new CacheEntry<Result>(htables.get(k).get(gets.get(k))));
                 }
             }
-
-            get.
-
             result = htable.get(get);
-
         } else {
             result = entry.getResult();
-
         }
 
-        // Result result = htable.get(get);
-        FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-        BufferedWriter bw = new BufferedWriter(fw);
-
-        long ts = System.currentTimeMillis();
-        Set<byte[]> families = get.getFamilyMap().keySet();
-        for (byte[] f : families) {
-            NavigableSet<byte[]> set = get.getFamilyMap().get(f);
-            for (byte[] q : set) {
-                bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
-                bw.newLine();
-            }
-        }
-        bw.close();
-        
-        
-        
-        
         return result;
     }
 
@@ -289,20 +293,22 @@ public class HTable implements HTableInterface {
     @Override
     public void put(Put put) throws IOException {
         htable.put(put);
-        FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
-        BufferedWriter bw = new BufferedWriter(fw);
+        if (IS_MONITORING) {
+            FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+            BufferedWriter bw = new BufferedWriter(fw);
 
-        long ts = System.currentTimeMillis();
-        Set<byte[]> families = put.getFamilyMap().keySet();
-        for (byte[] f : families) {
-            List<KeyValue> qualifiers = put.getFamilyMap().get(f);
-            for (KeyValue q : qualifiers) {
-                bw.write(ts + ":" + tableName + ":" + Bytes.toInt(put.getRow()) + ":" + Bytes.toString(f) + ":"
-                        + Bytes.toString(q.getQualifier()));
-                bw.newLine();
+            long ts = System.currentTimeMillis();
+            Set<byte[]> families = put.getFamilyMap().keySet();
+            for (byte[] f : families) {
+                List<KeyValue> qualifiers = put.getFamilyMap().get(f);
+                for (KeyValue q : qualifiers) {
+                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(put.getRow()) + ":" + Bytes.toString(f) + ":"
+                            + Bytes.toString(q.getQualifier()));
+                    bw.newLine();
+                }
             }
+            bw.close();
         }
-        bw.close();
     }
 
     @Override

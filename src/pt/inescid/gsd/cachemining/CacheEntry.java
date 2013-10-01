@@ -1,11 +1,15 @@
 package pt.inescid.gsd.cachemining;
 
-public class CacheEntry {
+public class CacheEntry<T> {
 
-    private Object object;
+    private T value;
 
-    public CacheEntry(Object object) {
-        this.object = object;
+    public CacheEntry(T value) {
+        this.value = value;
+    }
+
+    public T getResult() {
+        return value;
     }
 
 }
