@@ -41,11 +41,13 @@ public class HTable implements HTableInterface {
     private static SequenceEngine sequenceEngine = new SequenceEngine();
 
     private org.apache.hadoop.hbase.client.HTable htable;
-    private File file;
-    String tableName;
+    private File filePut, fileGet;
+    private String tableName;
 
     public HTable(Configuration conf, String tableName) throws IOException {
-        file = new File("put-operations.log");
+        long time = System.currentTimeMillis();
+        filePut = new File("put-operations" + time + ".log");
+        fileGet = new File("get-operations" + time + ".log");
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
@@ -136,16 +138,21 @@ public class HTable implements HTableInterface {
     public Result get(Get get) throws IOException {
         if (IS_MONITORING) {
             Result result = htable.get(get);
-            FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+            FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
             BufferedWriter bw = new BufferedWriter(fw);
 
             long ts = System.currentTimeMillis();
-            Set<byte[]> families = get.getFamilyMap().keySet();
+            Set<byte[]> families = get.familySet();
             for (byte[] f : families) {
-                NavigableSet<byte[]> set = get.getFamilyMap().get(f);
-                for (byte[] q : set) {
-                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f) + ":"
-                            + Bytes.toString(q));
+                NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
+                if (qualifiers != null) {
+                    for (byte[] q : qualifiers) {
+                        bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f) + ":"
+                                + Bytes.toString(q));
+                        bw.newLine();
+                    }
+                } else {
+                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f));
                     bw.newLine();
                 }
             }
@@ -163,12 +170,14 @@ public class HTable implements HTableInterface {
         for (byte[] family : families) {
             colFamily = Bytes.toString(family);
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-            for (byte[] qualifier : qualifiers) {
-                colQualifier = Bytes.toString(qualifier);
+            if (qualifiers != null) {
+                for (byte[] qualifier : qualifiers) {
+                    colQualifier = Bytes.toString(qualifier);
+                    break;
+                }
+                // FIXME
                 break;
             }
-            // FIXME
-            break;
         }
         String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
 
@@ -294,9 +303,8 @@ public class HTable implements HTableInterface {
     public void put(Put put) throws IOException {
         htable.put(put);
         if (IS_MONITORING) {
-            FileWriter fw = new FileWriter(file.getAbsoluteFile(), true);
+            FileWriter fw = new FileWriter(filePut.getAbsoluteFile(), true);
             BufferedWriter bw = new BufferedWriter(fw);
-
             long ts = System.currentTimeMillis();
             Set<byte[]> families = put.getFamilyMap().keySet();
             for (byte[] f : families) {
