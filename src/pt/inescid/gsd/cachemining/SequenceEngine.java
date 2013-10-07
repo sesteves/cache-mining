@@ -14,14 +14,18 @@ public class SequenceEngine {
 
     public final static String SEPARATOR = ":";
 
-    private static final String filename = "sequences.txt";
+    private static final String FILENAME = "sequences.txt";
 
     private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
+
+    public SequenceEngine() {
+        loadSequences();
+    }
 
     private void loadSequences() {
 
         try {
-            BufferedReader br = new BufferedReader(new FileReader(filename));
+            BufferedReader br = new BufferedReader(new FileReader(FILENAME));
             String line;
             while ((line = br.readLine()) != null) {
 
