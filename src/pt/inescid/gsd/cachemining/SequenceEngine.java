@@ -10,11 +10,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.log4j.Logger;
+
 public class SequenceEngine {
 
     public final static String SEPARATOR = ":";
 
     private static final String FILENAME = "sequences.txt";
+
+    private Logger log = Logger.getLogger(SequenceEngine.class);
 
     private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
 
@@ -27,9 +31,11 @@ public class SequenceEngine {
         try {
             BufferedReader br = new BufferedReader(new FileReader(FILENAME));
             String line;
+            int countSequences = 0;
             while ((line = br.readLine()) != null) {
 
                 String[] items = line.substring(0, line.lastIndexOf(':') - 1).split(" ");
+                countSequences += items.length;
 
                 if (sequences.containsKey(items[0])) {
                     Set<String> itemsSet = sequences.get(items[0]);
@@ -40,6 +46,8 @@ public class SequenceEngine {
 
             }
             br.close();
+
+            log.info("Loaded " + countSequences + " sequences indexed by " + sequences.size() + " indexes.");
 
             String str = "";
             for (String s : sequences.get("WAREHOUSE:2:h")) {

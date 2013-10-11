@@ -45,9 +45,8 @@ public class HTable implements HTableInterface {
     private String tableName;
 
     public HTable(Configuration conf, String tableName) throws IOException {
-        long time = System.currentTimeMillis();
-        filePut = new File("put-operations" + time + ".log");
-        fileGet = new File("get-operations" + time + ".log");
+        filePut = new File("put-operations.log");
+        fileGet = new File("get-operations.log");
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
@@ -179,7 +178,9 @@ public class HTable implements HTableInterface {
                 break;
             }
         }
-        String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
+        String key = tableName + SequenceEngine.SEPARATOR + colFamily;
+        if (colQualifier != null)
+            key += SequenceEngine.SEPARATOR + colQualifier;
 
         CacheEntry<Result> entry = cache.get(key);
         if (entry == null) {
@@ -194,7 +195,7 @@ public class HTable implements HTableInterface {
                     String[] elements = container.split(":");
                     String containerTableName = elements[0];
                     String containerColFamily = elements[1];
-                    String containerColQualifier = elements[2];
+                    String containerColQualifier = elements.length == 3 ? elements[2] : "";
 
                     Get g = gets.get(containerTableName);
                     if (g == null) {
