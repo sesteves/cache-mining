@@ -29,10 +29,13 @@ import org.apache.hadoop.hbase.client.coprocessor.Batch.Call;
 import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
 import org.apache.hadoop.hbase.ipc.CoprocessorProtocol;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.log4j.Logger;
 
 public class HTable implements HTableInterface {
 
     private static boolean IS_MONITORING = false;
+
+    private Logger log = Logger.getLogger(HTable.class);
 
     private static Map<String, org.apache.hadoop.hbase.client.HTable> htables = new HashMap<String, org.apache.hadoop.hbase.client.HTable>();
 
@@ -135,6 +138,9 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
+
+        log.info("get called (row: " + get.getRow() + ")");
+
         if (IS_MONITORING) {
             Result result = htable.get(get);
             FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
