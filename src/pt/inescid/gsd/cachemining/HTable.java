@@ -140,6 +140,7 @@ public class HTable implements HTableInterface {
     public Result get(Get get) throws IOException {
 
         log.info("get called (row: " + get.getRow() + ")");
+        System.out.println("### get called (row: " + get.getRow() + ")");
 
         if (IS_MONITORING) {
             Result result = htable.get(get);
@@ -188,12 +189,20 @@ public class HTable implements HTableInterface {
         if (colQualifier != null)
             key += SequenceEngine.SEPARATOR + colQualifier;
 
+        System.out.println("### Key: " + key);
+
         CacheEntry<Result> entry = cache.get(key);
         if (entry == null) {
+            System.out.println("### Element is not in cache!");
+
             Set<String> sequence = sequenceEngine.getSequence(key);
             if (sequence == null) {
+                System.out.println("### There is no sequence indexed by this item!");
+
                 result = htable.get(get);
             } else {
+                System.out.println("### There are sequences indexed by this item!");
+
                 // batch updates to the same tables
                 Map<String, Get> gets = new HashMap<String, Get>();
                 for (String container : sequence) {
@@ -216,6 +225,8 @@ public class HTable implements HTableInterface {
             }
             result = htable.get(get);
         } else {
+            System.out.println("### Element is in cache!");
+
             result = entry.getResult();
         }
 
