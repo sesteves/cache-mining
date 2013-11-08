@@ -139,8 +139,8 @@ public class HTable implements HTableInterface {
     @Override
     public Result get(Get get) throws IOException {
 
-        log.info("get called (row: " + get.getRow() + ")");
-        System.out.println("### get called (row: " + get.getRow() + ")");
+        log.info("get called (row: " + Bytes.toInt(get.getRow()) + ")");
+        System.out.println("### get called (row: " + Bytes.toInt(get.getRow()) + ")");
 
         if (IS_MONITORING) {
             Result result = htable.get(get);
@@ -189,20 +189,18 @@ public class HTable implements HTableInterface {
         if (colQualifier != null)
             key += SequenceEngine.SEPARATOR + colQualifier;
 
-        System.out.println("### Key: " + key);
-
         CacheEntry<Result> entry = cache.get(key);
         if (entry == null) {
-            System.out.println("### Element is not in cache!");
+            System.out.println("### Key '" + key + "' is not present in cache.");
 
             Set<String> sequence = sequenceEngine.getSequence(key);
             if (sequence == null) {
-                System.out.println("### There is no sequence indexed by this item!");
-
+                System.out.println("### There is no sequence indexed by key '" + key + "'.");
                 result = htable.get(get);
             } else {
-                System.out.println("### There are sequences indexed by this item!");
+                System.out.println("### There are sequences indexed by key '" + key + "'.");
 
+                // FIXME return elements of sequence already batched ?
                 // batch updates to the same tables
                 Map<String, Get> gets = new HashMap<String, Get>();
                 for (String container : sequence) {
@@ -218,18 +216,54 @@ public class HTable implements HTableInterface {
                     }
                     g.addColumn(Bytes.toBytes(containerColFamily), Bytes.toBytes(containerColQualifier));
                     gets.put(containerTableName, g);
+
+                    StringBuilder sb = new StringBuilder();
+
+                    for (byte b : g.getRow())
+                        sb.append(String.format("\\x%02x", b & 0xFF));
+
+                    System.out.println("### ITEM FROM SEQUENCE: tableName: " + containerTableName + ", key: " + sb.toString()
+                            + ", colFamily: " + containerColFamily + ", colQualifier: " + containerColQualifier);
                 }
+
+                System.out.println("### After batching updates to the same tables: size: " + gets.size());
+
+                // pre-fetch elements to cache
                 for (String k : gets.keySet()) {
-                    cache.put(k, new CacheEntry<Result>(htables.get(k).get(gets.get(k))));
+
+                    Result r = htables.get(k).get(gets.get(k));
+                    if (r.isEmpty())
+                        continue;
+
+                    System.out.println("### TableName: " + k + ", Result size: " + r.size());
+
+                    String cacheKey = k;
+                    for (byte[] kk : r.getNoVersionMap().keySet()) {
+                        System.out.println("### Key kk: " + Bytes.toString(kk));
+                        cacheKey = ":" + kk;
+
+                        for (byte[] kkk : r.getNoVersionMap().get(kk).keySet()) {
+                            System.out.println("### Key kkk: " + Bytes.toString(kkk) + ", Value: "
+                                    + Bytes.toString(r.getNoVersionMap().get(kk).get(kkk)));
+                            cacheKey = ":" + kkk;
+                        }
+                    }
+
+                    for (KeyValue kv : r.list()) {
+                        System.out.println("### Key: " + Bytes.toInt(kv.getKey()) + ", Value: " + Bytes.toString(kv.getValue()));
+                    }
+
+                    if (r.size() == 1)
+                        cache.put(cacheKey, new CacheEntry<Result>(r));
+
                 }
+                System.out.println("### Cache contents: " + cache.toString());
             }
             result = htable.get(get);
         } else {
             System.out.println("### Element is in cache!");
-
             result = entry.getResult();
         }
-
         return result;
     }
 

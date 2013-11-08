@@ -14,4 +14,14 @@ public class Cache<T> {
     public void put(String key, CacheEntry<T> entry) {
         cache.put(key, entry);
     }
+
+    @Override
+    public String toString() {
+        String str = "";
+
+        for (String key : cache.keySet()) {
+            str += key + "\n";
+        }
+        return str;
+    }
 }
