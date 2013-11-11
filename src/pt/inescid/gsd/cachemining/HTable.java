@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,11 +137,25 @@ public class HTable implements HTableInterface {
         htable.flushCommits();
     }
 
+    // for debugging purposes
+    private String getColumnsStr(Map<byte[], NavigableSet<byte[]>> familyMap) {
+        String columns = "";
+        Set<byte[]> families = familyMap.keySet();
+        for (byte[] family : families) {
+            columns += ", " + Bytes.toString(family);
+            NavigableSet<byte[]> qualifiers = familyMap.get(family);
+            for (byte[] qualifier : qualifiers)
+                columns += ":" + Bytes.toString(qualifier);
+        }
+        return columns.substring(1);
+    }
+
     @Override
     public Result get(Get get) throws IOException {
-
-        log.info("get called (row: " + Bytes.toInt(get.getRow()) + ")");
-        System.out.println("### get called (row: " + Bytes.toInt(get.getRow()) + ")");
+        log.info("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toInt(get.getRow()) + ", COLUMNS: "
+                + getColumnsStr(get.getFamilyMap()) + ")");
+        System.out.println("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toInt(get.getRow()) + ", COLUMNS: "
+                + getColumnsStr(get.getFamilyMap()) + ")");
 
         if (IS_MONITORING) {
             Result result = htable.get(get);
@@ -190,6 +205,10 @@ public class HTable implements HTableInterface {
             key += SequenceEngine.SEPARATOR + colQualifier;
 
         CacheEntry<Result> entry = cache.get(key);
+        // FIXME
+        if (!Arrays.equals(entry.getResult().getRow(), get.getRow()))
+            entry = null;
+
         if (entry == null) {
             System.out.println("### Key '" + key + "' is not present in cache.");
 
@@ -240,12 +259,12 @@ public class HTable implements HTableInterface {
                     String cacheKey = k;
                     for (byte[] kk : r.getNoVersionMap().keySet()) {
                         System.out.println("### Key kk: " + Bytes.toString(kk));
-                        cacheKey = ":" + kk;
+                        cacheKey += ":" + Bytes.toString(kk);
 
                         for (byte[] kkk : r.getNoVersionMap().get(kk).keySet()) {
                             System.out.println("### Key kkk: " + Bytes.toString(kkk) + ", Value: "
                                     + Bytes.toString(r.getNoVersionMap().get(kk).get(kkk)));
-                            cacheKey = ":" + kkk;
+                            cacheKey += ":" + Bytes.toString(kkk);
                         }
                     }
 
@@ -257,7 +276,7 @@ public class HTable implements HTableInterface {
                         cache.put(cacheKey, new CacheEntry<Result>(r));
 
                 }
-                System.out.println("### Cache contents: " + cache.toString());
+                System.out.println("### Cache contents: " + cache);
             }
             result = htable.get(get);
         } else {
