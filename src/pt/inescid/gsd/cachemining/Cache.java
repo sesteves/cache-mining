@@ -20,7 +20,7 @@ public class Cache<T> {
         String str = "";
 
         for (String key : cache.keySet()) {
-            str += key + "\n";
+            str += key + " - ";
         }
         return str;
     }

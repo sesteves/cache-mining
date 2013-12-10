@@ -2,13 +2,15 @@ package pt.inescid.gsd.cachemining;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
@@ -31,10 +33,16 @@ import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
 import org.apache.hadoop.hbase.ipc.CoprocessorProtocol;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
 
 public class HTable implements HTableInterface {
 
-    private static boolean IS_MONITORING = false;
+    private final static String PROPERTIES_FILE = "cachemining.properties";
+
+    private final static String MONITORING_KEY = "monitoring";
+    private final static String ENABLED_KEY = "enabled";
+    private final static String MONITORING_DEFAULT = "false";
+    private final static String ENABLED_DEFAULT = "false";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -48,7 +56,23 @@ public class HTable implements HTableInterface {
     private File filePut, fileGet;
     private String tableName;
 
+    private static int countGets = 0, countCacheHits = 0;
+
+    private boolean isMonitoring;
+    private boolean isEnabled;
+
     public HTable(Configuration conf, String tableName) throws IOException {
+        PropertyConfigurator.configure("cachemining-log4j.properties");
+
+        Properties properties = new Properties();
+        try {
+            properties.load(new FileInputStream(PROPERTIES_FILE));
+        } catch (IOException e) {
+            log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
+        }
+        isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
+        isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
+
         filePut = new File("put-operations.log");
         fileGet = new File("get-operations.log");
         this.tableName = tableName;
@@ -144,10 +168,38 @@ public class HTable implements HTableInterface {
         for (byte[] family : families) {
             columns += ", " + Bytes.toString(family);
             NavigableSet<byte[]> qualifiers = familyMap.get(family);
-            for (byte[] qualifier : qualifiers)
-                columns += ":" + Bytes.toString(qualifier);
+            if (qualifiers != null)
+                for (byte[] qualifier : qualifiers)
+                    columns += ":" + Bytes.toString(qualifier);
         }
         return columns.substring(1);
+    }
+
+    private List<String> getItemsFromGet(Get get) {
+        List<String> items = new ArrayList<String>();
+
+        final String tableName = this.tableName;
+        final String row = Bytes.toString(get.getRow());
+        String colFamily = null;
+        String colQualifier = null;
+        Set<byte[]> families = get.familySet();
+        for (byte[] family : families) {
+            colFamily = Bytes.toString(family);
+            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
+            if (qualifiers != null) {
+                for (byte[] qualifier : qualifiers) {
+                    colQualifier = Bytes.toString(qualifier);
+
+                    String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
+                    items.add(key);
+                }
+            } else {
+                String key = tableName + SequenceEngine.SEPARATOR + colFamily;
+                items.add(key);
+            }
+        }
+
+        return items;
     }
 
     @Override
@@ -157,8 +209,9 @@ public class HTable implements HTableInterface {
         System.out.println("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toInt(get.getRow()) + ", COLUMNS: "
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
-        if (IS_MONITORING) {
-            Result result = htable.get(get);
+        Result result = null;
+        if (isMonitoring) {
+            result = htable.get(get);
             FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
             BufferedWriter bw = new BufferedWriter(fw);
 
@@ -181,37 +234,42 @@ public class HTable implements HTableInterface {
             return result;
         }
 
-        Result result = null;
-        // build key
-        final String tableName = this.tableName;
-        final String row = Bytes.toString(get.getRow());
-        String colFamily = null;
-        String colQualifier = null;
-        Set<byte[]> families = get.familySet();
-        for (byte[] family : families) {
-            colFamily = Bytes.toString(family);
-            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-            if (qualifiers != null) {
-                for (byte[] qualifier : qualifiers) {
-                    colQualifier = Bytes.toString(qualifier);
-                    break;
-                }
-                // FIXME
-                break;
+        result = new Result();
+
+        // decomposition of items to get
+        List<String> getItems = getItemsFromGet(get);
+        String firstItem = getItems.get(0);
+        List<String> toRemove = new ArrayList<>();
+
+        // lookup cache
+        for (String item : getItems) {
+            CacheEntry<Result> entry = cache.get(item);
+            if (entry != null) {
+                Result partialResult = entry.getResult();
+                byte[] partialResultFamily = partialResult.getMap().keySet().iterator().next();
+
+                result.getMap().putAll(partialResult.getMap());
+                toRemove.add(item);
             }
+
         }
-        String key = tableName + SequenceEngine.SEPARATOR + colFamily;
-        if (colQualifier != null)
-            key += SequenceEngine.SEPARATOR + colQualifier;
 
-        CacheEntry<Result> entry = cache.get(key);
-        // FIXME
-        if (!Arrays.equals(entry.getResult().getRow(), get.getRow()))
-            entry = null;
+        // CacheEntry<Result> entry = cache.get(Bytes.toInt(get.getRow()) + "::"
+        // + key);
+        // countGets++;
 
-        if (entry == null) {
-            System.out.println("### Key '" + key + "' is not present in cache.");
+        if (getItems.size() > 0) {
+            Map<String, Get> gets = new HashMap<String, Get>();
+            for (String item : getItems) {
+                Get g = new Get(get.getRow());
 
+                String[] subItems = item.split(SequenceEngine.SEPARATOR);
+                g.addColumn(Bytes.toBytes(subItems[1]), Bytes.toBytes(subItems.length > 2 ? subItems[2] : ""));
+
+                gets.put(tableName, g);
+            }
+
+            String key = firstItem;
             Set<String> sequence = sequenceEngine.getSequence(key);
             if (sequence == null) {
                 System.out.println("### There is no sequence indexed by key '" + key + "'.");
@@ -273,16 +331,17 @@ public class HTable implements HTableInterface {
                     }
 
                     if (r.size() == 1)
-                        cache.put(cacheKey, new CacheEntry<Result>(r));
+                        cache.put(Bytes.toInt(r.getRow()) + "::" + cacheKey, new CacheEntry<Result>(r));
 
                 }
                 System.out.println("### Cache contents: " + cache);
             }
             result = htable.get(get);
-        } else {
-            System.out.println("### Element is in cache!");
-            result = entry.getResult();
         }
+
+        // System.out.println("### Cache hit rate: " + countCacheHits /
+        // countGets);
+
         return result;
     }
 
@@ -373,7 +432,7 @@ public class HTable implements HTableInterface {
     @Override
     public void put(Put put) throws IOException {
         htable.put(put);
-        if (IS_MONITORING) {
+        if (isMonitoring) {
             FileWriter fw = new FileWriter(filePut.getAbsoluteFile(), true);
             BufferedWriter bw = new BufferedWriter(fw);
             long ts = System.currentTimeMillis();

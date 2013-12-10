@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
 
 public class SequenceEngine {
 
@@ -23,6 +24,8 @@ public class SequenceEngine {
     private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
 
     public SequenceEngine() {
+        PropertyConfigurator.configure("cachemining-log4j.properties");
+
         loadSequences();
     }
 
