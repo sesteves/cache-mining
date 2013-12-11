@@ -175,31 +175,125 @@ public class HTable implements HTableInterface {
         return columns.substring(1);
     }
 
-    private List<String> getItemsFromGet(Get get) {
-        List<String> items = new ArrayList<String>();
+    private Result getItemsFromCache(Get get) {
+        Result result = null;
 
-        final String tableName = this.tableName;
-        final String row = Bytes.toString(get.getRow());
-        String colFamily = null;
-        String colQualifier = null;
+        List<byte[]> familiesToRemove = new ArrayList<byte[]>();
+
         Set<byte[]> families = get.familySet();
+        String key = null;
         for (byte[] family : families) {
-            colFamily = Bytes.toString(family);
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
             if (qualifiers != null) {
-                for (byte[] qualifier : qualifiers) {
-                    colQualifier = Bytes.toString(qualifier);
+                List<byte[]> qualifiersToRemove = new ArrayList<byte[]>();
 
-                    String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
-                    items.add(key);
+                for (byte[] qualifier : qualifiers) {
+                    key = Bytes.toString(get.getRow()) + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                            + Bytes.toString(family) + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
+
+                    System.out.println("Looking up in cache for key '" + key + "'");
+                    CacheEntry<Result> entry = cache.get(key);
+                    if (entry != null) {
+                        System.out.println("Cache hit");
+                        if (result == null)
+                            result = entry.getResult();
+                        else
+                            result.getMap().putAll(entry.getResult().getMap());
+                        qualifiersToRemove.add(qualifier);
+                    }
                 }
+                qualifiers.removeAll(qualifiersToRemove);
+                if (qualifiers.size() == 0)
+                    familiesToRemove.add(family);
             } else {
-                String key = tableName + SequenceEngine.SEPARATOR + colFamily;
-                items.add(key);
+                key = Bytes.toString(get.getRow()) + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                        + Bytes.toString(family);
+
+                System.out.println("Looking up in cache for key '" + key + "'");
+                CacheEntry<Result> entry = cache.get(key);
+                if (entry != null) {
+                    System.out.println("Cache hit");
+                    if (result == null)
+                        result = entry.getResult();
+                    else
+                        result.getMap().putAll(entry.getResult().getMap());
+
+                    familiesToRemove.add(family);
+                }
             }
         }
 
-        return items;
+        for (byte[] family : familiesToRemove)
+            get.getFamilyMap().remove(family);
+
+        return result;
+    }
+
+    private void prefetch(byte[] row, String item) throws IOException {
+        Set<String> sequence = sequenceEngine.getSequence(item);
+        if (sequence == null) {
+            System.out.println("### There is no sequence indexed by key '" + item + "'.");
+            return;
+        }
+
+        System.out.println("### There are sequences indexed by key '" + item + "'.");
+        Map<String, Get> gets = new HashMap<String, Get>();
+
+        // FIXME return elements of sequence already batched ?
+        // batch updates to the same tables
+        for (String container : sequence) {
+
+            String[] elements = container.split(":");
+            String containerTableName = elements[0];
+            String containerColFamily = elements[1];
+            String containerColQualifier = elements.length == 3 ? elements[2] : "";
+
+            Get g = gets.get(containerTableName);
+            if (g == null) {
+                g = new Get(row);
+            }
+            g.addColumn(Bytes.toBytes(containerColFamily), Bytes.toBytes(containerColQualifier));
+            gets.put(containerTableName, g);
+
+            // debugging purposes
+            StringBuilder sb = new StringBuilder();
+            for (byte b : g.getRow())
+                sb.append(String.format("\\x%02x", b & 0xFF));
+            System.out.println("### ITEM FROM SEQUENCE: tableName: " + containerTableName + ", key: " + sb.toString()
+                    + ", colFamily: " + containerColFamily + ", colQualifier: " + containerColQualifier);
+        }
+
+        System.out.println("### After batching updates to the same tables: size: " + gets.size());
+
+        // pre-fetch elements to cache
+        for (String k : gets.keySet()) {
+            Result r = htables.get(k).get(gets.get(k));
+            if (r.isEmpty())
+                continue;
+
+            // debugging purposes
+            System.out.println("### TableName: " + k + ", Result size: " + r.size());
+            String cacheKey = k;
+            for (byte[] kk : r.getNoVersionMap().keySet()) {
+                System.out.println("### Key kk: " + Bytes.toString(kk));
+                cacheKey += ":" + Bytes.toString(kk);
+
+                for (byte[] kkk : r.getNoVersionMap().get(kk).keySet()) {
+                    System.out.println("### Key kkk: " + Bytes.toString(kkk) + ", Value: "
+                            + Bytes.toString(r.getNoVersionMap().get(kk).get(kkk)));
+                    cacheKey += ":" + Bytes.toString(kkk);
+                }
+            }
+            // debugging purposes
+            for (KeyValue kv : r.list()) {
+                System.out.println("### Key: " + Bytes.toInt(kv.getKey()) + ", Value: " + Bytes.toString(kv.getValue()));
+            }
+
+            if (r.size() == 1)
+                cache.put(Bytes.toInt(r.getRow()) + SequenceEngine.SEPARATOR + cacheKey, new CacheEntry<Result>(r));
+
+        }
+        System.out.println("### Cache contents: " + cache);
     }
 
     @Override
@@ -234,113 +328,49 @@ public class HTable implements HTableInterface {
             return result;
         }
 
-        result = new Result();
+        byte[] family = get.familySet().iterator().next();
+        String firstItem = tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+        if (get.getFamilyMap().get(family) != null) {
+            String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
+            firstItem += SequenceEngine.SEPARATOR + qualifier;
+        }
 
-        // decomposition of items to get
-        List<String> getItems = getItemsFromGet(get);
-        String firstItem = getItems.get(0);
-        List<String> toRemove = new ArrayList<>();
+        // fetch items from cache
+        result = getItemsFromCache(get);
 
-        // lookup cache
-        for (String item : getItems) {
-            CacheEntry<Result> entry = cache.get(item);
-            if (entry != null) {
-                Result partialResult = entry.getResult();
-                byte[] partialResultFamily = partialResult.getMap().keySet().iterator().next();
+        if (get.hasFamilies()) {
 
+            // Map<String, Get> gets = new HashMap<String, Get>();
+            // for (String item : getItems) {
+            // Get g = new Get(get.getRow());
+            //
+            // String[] subItems = item.split(SequenceEngine.SEPARATOR);
+            // g.addColumn(Bytes.toBytes(subItems[1]),
+            // Bytes.toBytes(subItems.length > 2 ? subItems[2] : ""));
+            //
+            // gets.put(tableName, g);
+            // }
+
+            prefetch(get.getRow(), firstItem);
+
+            // // get results
+            // for (String key : gets) {
+            // Result partialResult = htables.get(k).get(gets.get(k));
+            //
+            // }
+
+            StringBuilder sb = new StringBuilder();
+            for (byte b : get.getRow())
+                sb.append(String.format("\\x%02x", b & 0xFF));
+            System.out.println("get UPDATE (TABLE: " + tableName + ", ROW: " + Bytes.toInt(get.getRow()) + " -" + sb.toString()
+                    + "- , COLUMNS: " + getColumnsStr(get.getFamilyMap()) + ")");
+
+            Result partialResult = htable.get(get);
+            if (result == null)
+                result = partialResult;
+            else
                 result.getMap().putAll(partialResult.getMap());
-                toRemove.add(item);
-            }
-
         }
-
-        // CacheEntry<Result> entry = cache.get(Bytes.toInt(get.getRow()) + "::"
-        // + key);
-        // countGets++;
-
-        if (getItems.size() > 0) {
-            Map<String, Get> gets = new HashMap<String, Get>();
-            for (String item : getItems) {
-                Get g = new Get(get.getRow());
-
-                String[] subItems = item.split(SequenceEngine.SEPARATOR);
-                g.addColumn(Bytes.toBytes(subItems[1]), Bytes.toBytes(subItems.length > 2 ? subItems[2] : ""));
-
-                gets.put(tableName, g);
-            }
-
-            String key = firstItem;
-            Set<String> sequence = sequenceEngine.getSequence(key);
-            if (sequence == null) {
-                System.out.println("### There is no sequence indexed by key '" + key + "'.");
-                result = htable.get(get);
-            } else {
-                System.out.println("### There are sequences indexed by key '" + key + "'.");
-
-                // FIXME return elements of sequence already batched ?
-                // batch updates to the same tables
-                Map<String, Get> gets = new HashMap<String, Get>();
-                for (String container : sequence) {
-
-                    String[] elements = container.split(":");
-                    String containerTableName = elements[0];
-                    String containerColFamily = elements[1];
-                    String containerColQualifier = elements.length == 3 ? elements[2] : "";
-
-                    Get g = gets.get(containerTableName);
-                    if (g == null) {
-                        g = new Get(get.getRow());
-                    }
-                    g.addColumn(Bytes.toBytes(containerColFamily), Bytes.toBytes(containerColQualifier));
-                    gets.put(containerTableName, g);
-
-                    StringBuilder sb = new StringBuilder();
-
-                    for (byte b : g.getRow())
-                        sb.append(String.format("\\x%02x", b & 0xFF));
-
-                    System.out.println("### ITEM FROM SEQUENCE: tableName: " + containerTableName + ", key: " + sb.toString()
-                            + ", colFamily: " + containerColFamily + ", colQualifier: " + containerColQualifier);
-                }
-
-                System.out.println("### After batching updates to the same tables: size: " + gets.size());
-
-                // pre-fetch elements to cache
-                for (String k : gets.keySet()) {
-
-                    Result r = htables.get(k).get(gets.get(k));
-                    if (r.isEmpty())
-                        continue;
-
-                    System.out.println("### TableName: " + k + ", Result size: " + r.size());
-
-                    String cacheKey = k;
-                    for (byte[] kk : r.getNoVersionMap().keySet()) {
-                        System.out.println("### Key kk: " + Bytes.toString(kk));
-                        cacheKey += ":" + Bytes.toString(kk);
-
-                        for (byte[] kkk : r.getNoVersionMap().get(kk).keySet()) {
-                            System.out.println("### Key kkk: " + Bytes.toString(kkk) + ", Value: "
-                                    + Bytes.toString(r.getNoVersionMap().get(kk).get(kkk)));
-                            cacheKey += ":" + Bytes.toString(kkk);
-                        }
-                    }
-
-                    for (KeyValue kv : r.list()) {
-                        System.out.println("### Key: " + Bytes.toInt(kv.getKey()) + ", Value: " + Bytes.toString(kv.getValue()));
-                    }
-
-                    if (r.size() == 1)
-                        cache.put(Bytes.toInt(r.getRow()) + "::" + cacheKey, new CacheEntry<Result>(r));
-
-                }
-                System.out.println("### Cache contents: " + cache);
-            }
-            result = htable.get(get);
-        }
-
-        // System.out.println("### Cache hit rate: " + countCacheHits /
-        // countGets);
 
         return result;
     }
