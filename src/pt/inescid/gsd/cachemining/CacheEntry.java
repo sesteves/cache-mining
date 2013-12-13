@@ -8,7 +8,7 @@ public class CacheEntry<T> {
         this.value = value;
     }
 
-    public T getResult() {
+    public T getValue() {
         return value;
     }
 

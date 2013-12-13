@@ -7,6 +7,10 @@ public class Cache<T> {
 
     private Map<String, CacheEntry<T>> cache = new HashMap<String, CacheEntry<T>>();
 
+    public boolean contains(String key) {
+        return cache.containsKey(key);
+    }
+
     public CacheEntry<T> get(String key) {
         return cache.get(key);
     }
