@@ -57,10 +57,12 @@ public class HTable implements HTableInterface {
     private File filePut, fileGet;
     private String tableName;
 
-    private static int countGets = 0, countCacheHits = 0;
+    private static int countGets = 0, countCacheHits = 0, countEffectiveGets = 0, countPrefetch = 0;
 
     private boolean isMonitoring;
     private boolean isEnabled;
+
+    private boolean doPrefetch;
 
     public HTable(Configuration conf, String tableName) throws IOException {
         PropertyConfigurator.configure("cachemining-log4j.properties");
@@ -73,6 +75,8 @@ public class HTable implements HTableInterface {
         }
         isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
         isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
+
+        log.info("HTable (Enabled: " + isEnabled + ")");
 
         filePut = new File("put-operations.log");
         fileGet = new File("get-operations.log");
@@ -153,8 +157,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public boolean exists(Get arg0) throws IOException {
-        // TODO Auto-generated method stub
-        return false;
+        return htable.exists(arg0);
     }
 
     @Override
@@ -176,15 +179,11 @@ public class HTable implements HTableInterface {
         return columns.substring(1);
     }
 
-    private List<KeyValue> getItemsFromCache(Get get) {
+    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
         List<KeyValue> kvs = new ArrayList<KeyValue>();
 
-        // FIXME remove
-        StringBuilder rowStr = new StringBuilder();
-        for (byte b : get.getRow())
-            rowStr.append(String.format("\\x%02x", b & 0xFF));
-
         List<byte[]> familiesToRemove = new ArrayList<byte[]>();
+        boolean firstItem = true;
         String key = null;
         for (byte[] family : get.familySet()) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
@@ -195,10 +194,16 @@ public class HTable implements HTableInterface {
                     key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family)
                             + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
 
-                    System.out.println("Looking up in cache for key '" + key + "'");
+                    // System.out.println("Looking up in cache for key '" + key
+                    // + "'");
                     CacheEntry<List<KeyValue>> entry = cache.get(key);
                     if (entry != null) {
-                        System.out.println("Cache hit");
+                        countCacheHits++;
+
+                        if (firstItem)
+                            doPrefetch = false;
+
+                        // System.out.println("Cache hit: " + countCacheHits);
                         kvs.addAll(entry.getValue());
                         qualifiersToRemove.add(qualifier);
                     }
@@ -209,15 +214,20 @@ public class HTable implements HTableInterface {
             } else {
                 key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
 
-                System.out.println("Looking up in cache for key '" + key + "'");
+                // System.out.println("Looking up in cache for key '" + key +
+                // "'");
                 CacheEntry<List<KeyValue>> entry = cache.get(key);
                 if (entry != null) {
-                    System.out.println("Cache hit");
-                    kvs.addAll(entry.getValue());
+                    countCacheHits++;
 
+                    if (firstItem)
+                        doPrefetch = false;
+                    // System.out.println("Cache hit: " + countCacheHits);
+                    kvs.addAll(entry.getValue());
                     familiesToRemove.add(family);
                 }
             }
+            firstItem = false;
         }
         for (byte[] family : familiesToRemove)
             get.getFamilyMap().remove(family);
@@ -225,20 +235,17 @@ public class HTable implements HTableInterface {
         return kvs;
     }
 
-    private void prefetch(byte[] row, String firstItem) throws IOException {
+    private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
         Set<String> sequence = sequenceEngine.getSequence(firstItem);
         if (sequence == null) {
-            System.out.println("### There is no sequence indexed by key '" + firstItem + "'.");
+            // System.out.println("### There is no sequence indexed by key '" +
+            // firstItem + "'.");
             return;
         }
 
-        System.out.println("### There are sequences indexed by key '" + firstItem + "'.");
+        // System.out.println("### There are sequences indexed by key '" +
+        // firstItem + "'.");
         Map<String, Get> gets = new HashMap<String, Get>();
-
-        // FIXME
-        StringBuilder rowStr = new StringBuilder();
-        for (byte b : row)
-            rowStr.append(String.format("\\x%02x", b & 0xFF));
 
         // FIXME return elements of sequence already batched ?
         // batch updates to the same tables
@@ -249,26 +256,28 @@ public class HTable implements HTableInterface {
             String family = elements[1];
             String qualifier = elements.length == 3 ? elements[2] : "";
 
-            // FIXME Check if items are already in cache
             String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + family
                     + SequenceEngine.SEPARATOR + qualifier;
-            if (cache.contains(key)) {
-                System.out.println("Already cached!");
-                continue;
-            }
 
-            Get get = gets.get(tableName);
-            if (get == null)
-                get = new Get(row);
-            get.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
-            gets.put(tableName, get);
+            if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
+                    .contains(qualifier))
+                    || cache.contains(key))
+                continue;
+
+            Get g = gets.get(tableName);
+            if (g == null)
+                g = new Get(get.getRow());
+            g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
+            gets.put(tableName, g);
 
             // debugging purposes
-            StringBuilder sb = new StringBuilder();
-            for (byte b : get.getRow())
-                sb.append(String.format("\\x%02x", b & 0xFF));
-            System.out.println("### Item from sequence tableName: " + tableName + ", row: " + Bytes.toString(row) + " - "
-                    + sb.toString() + "-, family: " + family + ", qualifier: " + qualifier);
+            // StringBuilder sb = new StringBuilder();
+            // for (byte b : g.getRow())
+            // sb.append(String.format("\\x%02x", b & 0xFF));
+            // System.out.println("### Item from sequence tableName: " +
+            // tableName + ", row: " + Bytes.toString(get.getRow()) + " - "
+            // + sb.toString() + "-, family: " + family + ", qualifier: " +
+            // qualifier);
         }
 
         // pre-fetch elements to cache
@@ -279,9 +288,11 @@ public class HTable implements HTableInterface {
 
             for (KeyValue kv : result.raw()) {
 
-                System.out.println("### Putting in cache KeyValue with key: " + kv.getKeyString() + ", tableName: " + tableName
-                        + ", Family: " + Bytes.toString(kv.getFamily()) + ", Qualifier: " + Bytes.toString(kv.getQualifier())
-                        + ", Value: " + Bytes.toString(kv.getValue()));
+                // System.out.println("### Putting in cache KeyValue with key: "
+                // + kv.getKeyString() + ", tableName: " + tableName
+                // + ", Family: " + Bytes.toString(kv.getFamily()) +
+                // ", Qualifier: " + Bytes.toString(kv.getQualifier())
+                // + ", Value: " + Bytes.toString(kv.getValue()));
 
                 String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
                         + Bytes.toString(kv.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(kv.getQualifier());
@@ -292,15 +303,16 @@ public class HTable implements HTableInterface {
             }
 
         }
-        System.out.println("### Cache contents: " + cache);
+        // System.out.println("### Cache contents: " + cache);
     }
 
     @Override
     public Result get(Get get) throws IOException {
         log.info("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toString(get.getRow()) + ", COLUMNS: "
                 + getColumnsStr(get.getFamilyMap()) + ")");
-        System.out.println("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toString(get.getRow()) + ", COLUMNS: "
-                + getColumnsStr(get.getFamilyMap()) + ")");
+
+        if (!isEnabled)
+            return htable.get(get);
 
         if (isMonitoring) {
             Result result = htable.get(get);
@@ -318,7 +330,7 @@ public class HTable implements HTableInterface {
                         bw.newLine();
                     }
                 } else {
-                    bw.write(ts + ":" + tableName + ":" + Bytes.toString(get.getRow()) + ":" + Bytes.toString(f));
+                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f));
                     bw.newLine();
                 }
             }
@@ -326,151 +338,60 @@ public class HTable implements HTableInterface {
             return result;
         }
 
+        countGets++;
+        doPrefetch = true;
+
         byte[] family = get.familySet().iterator().next();
-        String firstItem = tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+        StringBuilder sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + Bytes.toString(family));
         if (get.getFamilyMap().get(family) != null) {
             String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
-            firstItem += SequenceEngine.SEPARATOR + qualifier;
+            sb.append(SequenceEngine.SEPARATOR + qualifier);
         }
+        final String firstItem = sb.toString();
+
+        sb = new StringBuilder();
+        for (byte b : get.getRow())
+            sb.append(String.format("\\x%02x", b & 0xFF));
+        final String rowStr = sb.toString();
 
         // fetch items from cache
-        List<KeyValue> kvs = getItemsFromCache(get);
+        List<KeyValue> kvs = getItemsFromCache(get, rowStr);
 
         if (get.hasFamilies()) {
 
-            // Map<String, Get> gets = new HashMap<String, Get>();
-            // for (String item : getItems) {
-            // Get g = new Get(get.getRow());
-            //
-            // String[] subItems = item.split(SequenceEngine.SEPARATOR);
-            // g.addColumn(Bytes.toBytes(subItems[1]),
-            // Bytes.toBytes(subItems.length > 2 ? subItems[2] : ""));
-            //
-            // gets.put(tableName, g);
-            // }
+            countEffectiveGets++;
 
-            // FIXME never prefetch first item !!!
-            // FIXME verificar caso em que o prefecth está já a responder ao get
-            // original !!! - mover prefetch antes de obter items da cache
-            prefetch(get.getRow(), firstItem);
+            // prefetch
+            if (doPrefetch) {
+                countPrefetch++;
 
-            // // get results
-            // for (String key : gets) {
-            // Result partialResult = htables.get(k).get(gets.get(k));
-            //
-            // }
+                final Get finalGet = get;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            prefetch(finalGet, rowStr, firstItem);
+                        } catch (IOException e) {
+                            log.fatal(e.getMessage());
+                        }
+                    }
+                }).run();
 
-            StringBuilder sb = new StringBuilder();
-            for (byte b : get.getRow())
-                sb.append(String.format("\\x%02x", b & 0xFF));
-            System.out.println("get UPDATE (TABLE: " + tableName + ", ROW: " + Bytes.toString(get.getRow()) + " -" + sb.toString()
-                    + "- , COLUMNS: " + getColumnsStr(get.getFamilyMap()) + ")");
+            }
 
+            // get remaining items
             Result partialResult = htable.get(get);
 
-            for (byte[] f : partialResult.getMap().keySet()) {
-                System.out.print("### Partial Result Family: " + Bytes.toString(f));
-                for (byte[] q : partialResult.getFamilyMap(f).keySet()) {
-                    System.out.print(" : Qualifier: " + Bytes.toString(q) + " :: Value: "
-                            + Bytes.toString(partialResult.getValue(f, q)) + ", VAlue2: "
-                            + Bytes.toString(partialResult.getFamilyMap(f).get(q)));
-                }
-                System.out.println();
-            }
-
+            // merge results
             kvs.addAll(partialResult.list());
             Collections.sort(kvs, KeyValue.COMPARATOR);
-            // System.out.println("kvs size: " + kvs.size());
-
-            for (KeyValue kv : kvs) {
-                System.out.println("### KVS Key: " + kv.getKeyString() + ", Family: " + Bytes.toString(kv.getFamily())
-                        + ", Qualifier: " + Bytes.toString(kv.getQualifier()) + ", Value: " + Bytes.toString(kv.getValue()));
-            }
-
-            Result result = new Result(kvs);
-            System.out.println("kvs length: " + result.raw().length);
-
-            for (byte[] f : result.getMap().keySet()) {
-                System.out.print("### Result Family: " + Bytes.toString(f));
-                for (byte[] q : result.getMap().get(f).keySet()) {
-                    System.out.print(" : Qualifier: " + Bytes.toString(q) + " :: Value: " + Bytes.toString(result.getValue(f, q)));
-
-                    // KeyValue[] kvs2 = result.raw(); // side effect possibly.
-                    // if (kvs2 == null || kvs2.length == 0) {
-                    // System.out.println("KVS2 NULL ?!");
-                    // }
-                    //
-                    // System.out.println("kvs2[0].getRow()::: " +
-                    // Bytes.toString(kvs2[0].getRow()));
-                    // System.out.println("kvs2[len].getRow()::: " +
-                    // Bytes.toString(kvs2[kvs2.length - 1].getRow()));
-                    //
-                    // KeyValue searchTerm =
-                    // KeyValue.createFirstOnRow(kvs2[kvs2.length - 1].getRow(),
-                    // f, q);
-                    // System.out.println("SearchTerm: Family: " +
-                    // Bytes.toString(searchTerm.getFamily()) + ", Qualifier: "
-                    // + Bytes.toString(searchTerm.getQualifier()));
-                    // int pos = Arrays.binarySearch(kvs2, searchTerm,
-                    // KeyValue.COMPARATOR);
-                    // System.out.println("POS0: " + pos);
-                    // if (pos < 0) {
-                    // pos = (pos + 1) * -1;
-                    // // pos is now insertion point
-                    // }
-                    // if (pos == kvs2.length) {
-                    // System.out.println("does not exist !?");
-                    // }
-                    //
-                    // KeyValue kv = kvs2[pos];
-                    //
-                    // System.out.println("POS: " + pos);
-                    //
-                    // if (!Bytes.equals(f, 0, f.length, kv.getBuffer(),
-                    // kv.getFamilyOffset(kv.getRowLength()),
-                    // kv.getFamilyLength())) {
-                    // System.out.println("ERROR !!");
-                    // }
-                    //
-                    // int ql = kv.getQualifierLength(kv.getRowLength(),
-                    // kv.getFamilyLength());
-                    // if (q == null || q.length == 0)
-                    // System.out.println("ERROR 2 !!!");
-                    //
-                    // System.out.println("---> qualifier: "
-                    // + Bytes.toString(Arrays.copyOfRange(kv.getBuffer(),
-                    // kv.getFamilyOffset(kv.getRowLength()) +
-                    // kv.getFamilyLength(),
-                    // kv.getFamilyOffset(kv.getRowLength()) +
-                    // kv.getFamilyLength() + 1)));
-                    // if (!Bytes.equals(q, 0, q.length, kv.getBuffer(),
-                    // kv.getFamilyOffset(kv.getRowLength()) +
-                    // kv.getFamilyLength(),
-                    // ql)) {
-                    // System.out.println("ERROR 3 !!!");
-                    // }
-                    //
-                    // if (kv.matchingColumn(f, q)) {
-                    // System.out.println("KV RETURNED :) with value: " +
-                    // Bytes.toString(kv.getValue()));
-                    // } else {
-                    // System.out.println("Failed matching!");
-                    // }
-
-                }
-                System.out.println();
-            }
-
-            for (byte[] f : result.getMap().keySet()) {
-                System.out.print("### Result2 Family: " + Bytes.toString(f));
-                for (byte[] q : result.getFamilyMap(f).keySet()) {
-                    System.out.print(" : Qualifier: " + Bytes.toString(q) + " :: Value: "
-                            + Bytes.toString(result.getFamilyMap(f).get(q)));
-                }
-                System.out.println();
-            }
-
         }
+
+        double cacheHitRate = (double) countCacheHits / (double) countGets;
+        double effectiveGets = (double) countEffectiveGets / (double) countGets;
+        double prefetchRatio = (double) countPrefetch / (double) countGets;
+        log.debug("Total gets: " + countGets + ", Cache hit rate: " + cacheHitRate + ", Effective gets: " + effectiveGets
+                + ", Prefetch ratio: " + prefetchRatio);
 
         return new Result(kvs);
     }
@@ -487,8 +408,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result getRowOrBefore(byte[] arg0, byte[] arg1) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.getRowOrBefore(arg0, arg1);
     }
 
     @Override
@@ -508,38 +428,32 @@ public class HTable implements HTableInterface {
 
     @Override
     public HTableDescriptor getTableDescriptor() throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.getTableDescriptor();
     }
 
     @Override
     public byte[] getTableName() {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.getTableName();
     }
 
     @Override
     public long getWriteBufferSize() {
-        // TODO Auto-generated method stub
-        return 0;
+        return htable.getWriteBufferSize();
     }
 
     @Override
     public Result increment(Increment arg0) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.increment(arg0);
     }
 
     @Override
     public long incrementColumnValue(byte[] arg0, byte[] arg1, byte[] arg2, long arg3) throws IOException {
-        // TODO Auto-generated method stub
-        return 0;
+        return htable.incrementColumnValue(arg0, arg1, arg2, arg3);
     }
 
     @Override
     public long incrementColumnValue(byte[] arg0, byte[] arg1, byte[] arg2, long arg3, boolean arg4) throws IOException {
-        // TODO Auto-generated method stub
-        return 0;
+        return htable.incrementColumnValue(arg0, arg1, arg2, arg3, arg4);
     }
 
     @Override
@@ -549,14 +463,12 @@ public class HTable implements HTableInterface {
 
     @Override
     public RowLock lockRow(byte[] arg0) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.lockRow(arg0);
     }
 
     @Override
     public void mutateRow(RowMutations arg0) throws IOException {
-        // TODO Auto-generated method stub
-
+        htable.mutateRow(arg0);
     }
 
     @Override
@@ -597,13 +509,11 @@ public class HTable implements HTableInterface {
     @Override
     public void setWriteBufferSize(long arg0) throws IOException {
         htable.setWriteBufferSize(arg0);
-
     }
 
     @Override
     public void unlockRow(RowLock arg0) throws IOException {
-        // TODO Auto-generated method stub
-
+        htable.unlockRow(arg0);
     }
 
 }
