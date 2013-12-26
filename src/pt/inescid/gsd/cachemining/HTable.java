@@ -91,32 +91,27 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result append(Append arg0) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.append(arg0);
     }
 
     @Override
     public Object[] batch(List<? extends Row> arg0) throws IOException, InterruptedException {
-        // TODO Auto-generated method stub
-        return null;
+        return htable.batch(arg0);
     }
 
     @Override
     public void batch(List<? extends Row> arg0, Object[] arg1) throws IOException, InterruptedException {
-        // TODO Auto-generated method stub
-
+        htable.batch(arg0, arg1);
     }
 
     @Override
     public boolean checkAndDelete(byte[] arg0, byte[] arg1, byte[] arg2, byte[] arg3, Delete arg4) throws IOException {
-        // TODO Auto-generated method stub
-        return false;
+        return htable.checkAndDelete(arg0, arg1, arg2, arg3, arg4);
     }
 
     @Override
     public boolean checkAndPut(byte[] arg0, byte[] arg1, byte[] arg2, byte[] arg3, Put arg4) throws IOException {
-        // TODO Auto-generated method stub
-        return false;
+        return htable.checkAndPut(arg0, arg1, arg2, arg3, arg4);
     }
 
     @Override
@@ -236,6 +231,8 @@ public class HTable implements HTableInterface {
     }
 
     private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
+        long startTick = System.currentTimeMillis();
+
         Set<String> sequence = sequenceEngine.getSequence(firstItem);
         if (sequence == null) {
             // System.out.println("### There is no sequence indexed by key '" +
@@ -304,6 +301,9 @@ public class HTable implements HTableInterface {
 
         }
         // System.out.println("### Cache contents: " + cache);
+
+        long diff = System.currentTimeMillis() - startTick;
+        log.debug("Time taken with prefetching: " + diff);
     }
 
     @Override
@@ -313,6 +313,11 @@ public class HTable implements HTableInterface {
 
         if (!isEnabled)
             return htable.get(get);
+
+        StringBuilder sb = new StringBuilder();
+        for (byte b : get.getRow())
+            sb.append(String.format("\\x%02x", b & 0xFF));
+        final String rowStr = sb.toString();
 
         if (isMonitoring) {
             Result result = htable.get(get);
@@ -325,12 +330,11 @@ public class HTable implements HTableInterface {
                 NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
                 if (qualifiers != null) {
                     for (byte[] q : qualifiers) {
-                        bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f) + ":"
-                                + Bytes.toString(q));
+                        bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
                         bw.newLine();
                     }
                 } else {
-                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(get.getRow()) + ":" + Bytes.toString(f));
+                    bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
                     bw.newLine();
                 }
             }
@@ -342,17 +346,12 @@ public class HTable implements HTableInterface {
         doPrefetch = true;
 
         byte[] family = get.familySet().iterator().next();
-        StringBuilder sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + Bytes.toString(family));
+        sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + Bytes.toString(family));
         if (get.getFamilyMap().get(family) != null) {
             String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
             sb.append(SequenceEngine.SEPARATOR + qualifier);
         }
         final String firstItem = sb.toString();
-
-        sb = new StringBuilder();
-        for (byte b : get.getRow())
-            sb.append(String.format("\\x%02x", b & 0xFF));
-        final String rowStr = sb.toString();
 
         // fetch items from cache
         List<KeyValue> kvs = getItemsFromCache(get, rowStr);
@@ -383,8 +382,10 @@ public class HTable implements HTableInterface {
             Result partialResult = htable.get(get);
 
             // merge results
-            kvs.addAll(partialResult.list());
-            Collections.sort(kvs, KeyValue.COMPARATOR);
+            if (!partialResult.isEmpty()) {
+                kvs.addAll(partialResult.list());
+                Collections.sort(kvs, KeyValue.COMPARATOR);
+            }
         }
 
         double cacheHitRate = (double) countCacheHits / (double) countGets;

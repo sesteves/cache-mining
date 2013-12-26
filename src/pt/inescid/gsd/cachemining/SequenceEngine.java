@@ -51,18 +51,11 @@ public class SequenceEngine {
             br.close();
 
             log.info("Loaded " + countSequences + " sequences indexed by " + sequences.size() + " indexes.");
-            System.out.println("Loaded " + countSequences + " sequences indexed by " + sequences.size() + " indexes.");
-
-            // String str = "";
-            // for (String s : sequences.get("WAREHOUSE:2:h")) {
-            // str += s + " - ";
-            // }
-            // System.out.println("Sequence -> " + str);
 
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            log.fatal(e.getMessage());
         } catch (IOException e) {
-            e.printStackTrace();
+            log.fatal(e.getMessage());
         }
     }
 
