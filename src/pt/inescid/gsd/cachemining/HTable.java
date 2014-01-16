@@ -78,11 +78,23 @@ public class HTable implements HTableInterface {
 
         log.info("HTable (Enabled: " + isEnabled + ")");
 
+        // TODO delete files if they exist
         filePut = new File("put-operations.log");
         fileGet = new File("get-operations.log");
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
+    }
+
+    public void markTransaction() throws IOException {
+        if (!(isEnabled && isMonitoring))
+            return;
+
+        FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
+        BufferedWriter bw = new BufferedWriter(fw);
+        bw.write("### TRANSACTION " + System.currentTimeMillis());
+        bw.newLine();
+        bw.close();
     }
 
     public void setScannerCaching(int scannerCaching) {
