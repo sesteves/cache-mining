@@ -247,18 +247,18 @@ public class HTable implements HTableInterface {
 
         Set<String> sequence = sequenceEngine.getSequence(firstItem);
         if (sequence == null) {
-            // System.out.println("### There is no sequence indexed by key '" +
-            // firstItem + "'.");
+            System.out.println("### There is no sequence indexed by key '" + firstItem + "'.");
             return;
         }
 
-        // System.out.println("### There are sequences indexed by key '" +
-        // firstItem + "'.");
+        System.out.println("### There are sequences indexed by key '" + firstItem + "'.");
         Map<String, Get> gets = new HashMap<String, Get>();
 
         // FIXME return elements of sequence already batched ?
         // batch updates to the same tables
         for (String item : sequence) {
+
+            // FIXME account with row
 
             String[] elements = item.split(":");
             String tableName = elements[0];
@@ -358,7 +358,9 @@ public class HTable implements HTableInterface {
         doPrefetch = true;
 
         byte[] family = get.familySet().iterator().next();
-        sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + Bytes.toString(family));
+        // FIXME row
+        sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + rowStr + SequenceEngine.SEPARATOR + Bytes.toString(family));
+
         if (get.getFamilyMap().get(family) != null) {
             String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
             sb.append(SequenceEngine.SEPARATOR + qualifier);
