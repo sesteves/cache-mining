@@ -1,6 +1,7 @@
 package pt.inescid.gsd.cachemining;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,6 +9,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
@@ -15,24 +17,38 @@ import org.apache.log4j.PropertyConfigurator;
 
 public class SequenceEngine {
 
+	private final static String PROPERTIES_FILE = "cachemining.properties";
+	
+	private final static String SEQUENCES_FILE_KEY = "sequencesFile";
+	private final static String SEQUENCES_FILE_DEFAULT = "sequences.txt";
+	
+	
     public final static String SEPARATOR = ":";
-
-    private static final String FILENAME = "sequences.txt";
 
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
     private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
 
+	private String sequencesFile;
+
     public SequenceEngine() {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
+        Properties properties = new Properties();
+        try {
+            properties.load(new FileInputStream(PROPERTIES_FILE));            
+        } catch (IOException e) {
+            log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
+        }
+        sequencesFile = properties.getProperty(SEQUENCES_FILE_KEY, SEQUENCES_FILE_DEFAULT);
+        
         loadSequences();
     }
 
     private void loadSequences() {
 
         try {
-            BufferedReader br = new BufferedReader(new FileReader(FILENAME));
+            BufferedReader br = new BufferedReader(new FileReader(sequencesFile));
             String line;
             int countSequences = 0;
             while ((line = br.readLine()) != null) {
@@ -50,7 +66,7 @@ public class SequenceEngine {
             }
             br.close();
 
-            log.info("Loaded " + countSequences + " sequences indexed by " + sequences.size() + " indexes.");
+            log.info("Loaded " + countSequences + " sequences indexed by " + sequences.size() + " indexes from file " + sequencesFile);
 
         } catch (FileNotFoundException e) {
             log.fatal(e.getMessage());
