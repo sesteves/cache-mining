@@ -247,46 +247,45 @@ public class HTable implements HTableInterface {
 
         Set<String> sequence = sequenceEngine.getSequence(firstItem);
         if (sequence == null) {
-            System.out.println("### There is no sequence indexed by key '" + firstItem + "'.");
+            log.debug("There is no sequence indexed by key '" + firstItem + "'.");
             return;
         }
 
-        System.out.println("### There are sequences indexed by key '" + firstItem + "'.");
-        Map<String, Get> gets = new HashMap<String, Get>();
+        log.debug("There are sequences indexed by key '" + firstItem + "'.");
+        Map<String, List<Get>> gets = new HashMap<String, List<Get>>();
 
         // FIXME return elements of sequence already batched ?
         // batch updates to the same tables
         for (String item : sequence) {
 
-            // FIXME account with row
-
             String[] elements = item.split(":");
             String tableName = elements[0];
-            String family = elements[1];
-            String qualifier = elements.length == 3 ? elements[2] : "";
+            String row = elements[1];
+            String family = elements[2];
+            String qualifier = elements.length == 4 ? elements[3] : "";
 
             String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + family
                     + SequenceEngine.SEPARATOR + qualifier;
 
+            // if the item is part of the get request or item is in cache
             if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
                     .contains(qualifier))
                     || cache.contains(key))
                 continue;
 
-            Get g = gets.get(tableName);
-            if (g == null)
-                g = new Get(get.getRow());
-            g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
-            gets.put(tableName, g);
+            /*
+             * Get g = gets.get(tableName); if (g == null) g = new
+             * Get(get.getRow()); g.addColumn(Bytes.toBytes(family),
+             * Bytes.toBytes(qualifier)); gets.put(tableName, g);
+             */
 
-            // debugging purposes
-            // StringBuilder sb = new StringBuilder();
-            // for (byte b : g.getRow())
-            // sb.append(String.format("\\x%02x", b & 0xFF));
-            // System.out.println("### Item from sequence tableName: " +
-            // tableName + ", row: " + Bytes.toString(get.getRow()) + " - "
-            // + sb.toString() + "-, family: " + family + ", qualifier: " +
-            // qualifier);
+            List<Get> list = gets.get(tableName);
+            if (list == null)
+                list = new ArrayList<Get>();
+            Get g = new Get(row);
+            g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
+            list.add(g);
+            gets.put(tableName, list);
         }
 
         // pre-fetch elements to cache
