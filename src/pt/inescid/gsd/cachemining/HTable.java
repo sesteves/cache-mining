@@ -264,10 +264,14 @@ public class HTable implements HTableInterface {
             String family = elements[2];
             String qualifier = elements.length == 4 ? elements[3] : "";
 
-            String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + family
-                    + SequenceEngine.SEPARATOR + qualifier;
+            // String key = rowStr + SequenceEngine.SEPARATOR + tableName +
+            // SequenceEngine.SEPARATOR + family
+            // + SequenceEngine.SEPARATOR + qualifier;
 
-            // if the item is part of the get request or item is in cache
+            String key = tableName + SequenceEngine.SEPARATOR + row + SequenceEngine.SEPARATOR + family + SequenceEngine.SEPARATOR
+                    + qualifier;
+            // if current item is part of the get request or item is in cache,
+            // skip it
             if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
                     .contains(qualifier))
                     || cache.contains(key))
@@ -282,7 +286,7 @@ public class HTable implements HTableInterface {
             List<Get> list = gets.get(tableName);
             if (list == null)
                 list = new ArrayList<Get>();
-            Get g = new Get(row);
+            Get g = new Get(strToBytes(row));
             g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
             list.add(g);
             gets.put(tableName, list);
@@ -290,24 +294,27 @@ public class HTable implements HTableInterface {
 
         // pre-fetch elements to cache
         for (String tableName : gets.keySet()) {
-            Result result = htables.get(tableName).get(gets.get(tableName));
-            if (result.isEmpty())
-                continue;
+            Result[] results = htables.get(tableName).get(gets.get(tableName));
 
-            for (KeyValue kv : result.raw()) {
+            for (Result result : results) {
+                if (result.isEmpty())
+                    continue;
+                for (KeyValue kv : result.raw()) {
 
-                // System.out.println("### Putting in cache KeyValue with key: "
-                // + kv.getKeyString() + ", tableName: " + tableName
-                // + ", Family: " + Bytes.toString(kv.getFamily()) +
-                // ", Qualifier: " + Bytes.toString(kv.getQualifier())
-                // + ", Value: " + Bytes.toString(kv.getValue()));
+                    // System.out.println("### Putting in cache KeyValue with key: "
+                    // + kv.getKeyString() + ", tableName: " + tableName
+                    // + ", Family: " + Bytes.toString(kv.getFamily()) +
+                    // ", Qualifier: " + Bytes.toString(kv.getQualifier())
+                    // + ", Value: " + Bytes.toString(kv.getValue()));
 
-                String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
-                        + Bytes.toString(kv.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(kv.getQualifier());
-                // FIXME cache entry should correspond to a single KeyValue ?
-                List<KeyValue> kvs = new ArrayList<KeyValue>();
-                kvs.add(kv);
-                cache.put(key, new CacheEntry<List<KeyValue>>(kvs));
+                    String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                            + Bytes.toString(kv.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(kv.getQualifier());
+                    // FIXME cache entry should correspond to a single KeyValue
+                    // ?
+                    List<KeyValue> kvs = new ArrayList<KeyValue>();
+                    kvs.add(kv);
+                    cache.put(key, new CacheEntry<List<KeyValue>>(kvs));
+                }
             }
 
         }
@@ -315,6 +322,20 @@ public class HTable implements HTableInterface {
 
         long diff = System.currentTimeMillis() - startTick;
         log.debug("Time taken with prefetching: " + diff);
+    }
+
+    private String bytesToStr(byte[] arr) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : arr)
+            sb.append(String.format("\\x%02x", b & 0xFF));
+        return sb.toString();
+    }
+
+    private byte[] strToBytes(String str) {
+        byte[] result = new byte[str.length() / 4];
+        for (int i = 2, j = 0; i < str.length(); i += 4, j++)
+            result[j] = (byte) Integer.parseInt(str.substring(i, i + 2), 16);
+        return result;
     }
 
     @Override
@@ -325,10 +346,7 @@ public class HTable implements HTableInterface {
         if (!isEnabled)
             return htable.get(get);
 
-        StringBuilder sb = new StringBuilder();
-        for (byte b : get.getRow())
-            sb.append(String.format("\\x%02x", b & 0xFF));
-        final String rowStr = sb.toString();
+        final String rowStr = bytesToStr(get.getRow());
 
         if (isMonitoring) {
             Result result = htable.get(get);
@@ -358,7 +376,8 @@ public class HTable implements HTableInterface {
 
         byte[] family = get.familySet().iterator().next();
         // FIXME row
-        sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + rowStr + SequenceEngine.SEPARATOR + Bytes.toString(family));
+        StringBuilder sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + rowStr + SequenceEngine.SEPARATOR
+                + Bytes.toString(family));
 
         if (get.getFamilyMap().get(family) != null) {
             String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
