@@ -1,5 +1,32 @@
 package pt.inescid.gsd.cachemining;
 
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.Message;
+import com.google.protobuf.Service;
+import com.google.protobuf.ServiceException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Append;
+import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Durability;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.client.Increment;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.client.ResultScanner;
+import org.apache.hadoop.hbase.client.Row;
+import org.apache.hadoop.hbase.client.RowMutations;
+import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.coprocessor.Batch.Call;
+import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
+import org.apache.hadoop.hbase.filter.CompareFilter;
+import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,28 +40,6 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Properties;
 import java.util.Set;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.client.Append;
-import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HTableInterface;
-import org.apache.hadoop.hbase.client.Increment;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.ResultScanner;
-import org.apache.hadoop.hbase.client.Row;
-import org.apache.hadoop.hbase.client.RowLock;
-import org.apache.hadoop.hbase.client.RowMutations;
-import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.client.coprocessor.Batch.Call;
-import org.apache.hadoop.hbase.client.coprocessor.Batch.Callback;
-import org.apache.hadoop.hbase.ipc.CoprocessorProtocol;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 
 public class HTable implements HTableInterface {
 
@@ -112,6 +117,16 @@ public class HTable implements HTableInterface {
     }
 
     @Override
+    public <R> void batchCallback(List<? extends Row> list, Object[] objects, Callback<R> callback) throws IOException, InterruptedException {
+
+    }
+
+    @Override
+    public <R> Object[] batchCallback(List<? extends Row> list, Callback<R> callback) throws IOException, InterruptedException {
+        return new Object[0];
+    }
+
+    @Override
     public void batch(List<? extends Row> arg0, Object[] arg1) throws IOException, InterruptedException {
         htable.batch(arg0, arg1);
     }
@@ -122,8 +137,18 @@ public class HTable implements HTableInterface {
     }
 
     @Override
+    public boolean checkAndDelete(byte[] bytes, byte[] bytes1, byte[] bytes2, CompareFilter.CompareOp compareOp, byte[] bytes3, Delete delete) throws IOException {
+        return false;
+    }
+
+    @Override
     public boolean checkAndPut(byte[] arg0, byte[] arg1, byte[] arg2, byte[] arg3, Put arg4) throws IOException {
         return htable.checkAndPut(arg0, arg1, arg2, arg3, arg4);
+    }
+
+    @Override
+    public boolean checkAndPut(byte[] bytes, byte[] bytes1, byte[] bytes2, CompareFilter.CompareOp compareOp, byte[] bytes3, Put put) throws IOException {
+        return false;
     }
 
     @Override
@@ -133,23 +158,18 @@ public class HTable implements HTableInterface {
     }
 
     @Override
-    public <T extends CoprocessorProtocol, R> Map<byte[], R> coprocessorExec(Class<T> arg0, byte[] arg1, byte[] arg2,
-            Call<T, R> arg3) throws IOException, Throwable {
-        // TODO Auto-generated method stub
-        return null;
+    public CoprocessorRpcChannel coprocessorService(byte[] bytes) {
+        return htable.coprocessorService(bytes);
     }
 
     @Override
-    public <T extends CoprocessorProtocol, R> void coprocessorExec(Class<T> arg0, byte[] arg1, byte[] arg2, Call<T, R> arg3,
-            Callback<R> arg4) throws IOException, Throwable {
-        // TODO Auto-generated method stub
-
+    public <T extends Service, R> Map<byte[], R> coprocessorService(Class<T> aClass, byte[] bytes, byte[] bytes1, Call<T, R> call) throws ServiceException, Throwable {
+        return htable.coprocessorService(aClass, bytes, bytes1, call);
     }
 
     @Override
-    public <T extends CoprocessorProtocol> T coprocessorProxy(Class<T> arg0, byte[] arg1) {
-        // TODO Auto-generated method stub
-        return null;
+    public <T extends Service, R> void coprocessorService(Class<T> aClass, byte[] bytes, byte[] bytes1, Call<T, R> call, Callback<R> callback) throws ServiceException, Throwable {
+        htable.coprocessorService(aClass, bytes, bytes1, call, callback);
     }
 
     @Override
@@ -165,6 +185,11 @@ public class HTable implements HTableInterface {
     @Override
     public boolean exists(Get arg0) throws IOException {
         return htable.exists(arg0);
+    }
+
+    @Override
+    public boolean[] existsAll(List<Get> list) throws IOException {
+        return new boolean[0];
     }
 
     @Override
@@ -435,6 +460,11 @@ public class HTable implements HTableInterface {
     }
 
     @Override
+    public org.apache.hadoop.hbase.TableName getName() {
+        return htable.getName();
+    }
+
+    @Override
     public Configuration getConfiguration() {
         return htable.getConfiguration();
     }
@@ -485,18 +515,23 @@ public class HTable implements HTableInterface {
     }
 
     @Override
+    public long incrementColumnValue(byte[] bytes, byte[] bytes1, byte[] bytes2, long l, Durability durability) throws IOException {
+        return 0;
+    }
+
+    @Override
     public long incrementColumnValue(byte[] arg0, byte[] arg1, byte[] arg2, long arg3, boolean arg4) throws IOException {
         return htable.incrementColumnValue(arg0, arg1, arg2, arg3, arg4);
     }
 
     @Override
-    public boolean isAutoFlush() {
-        return htable.isAutoFlush();
+    public Boolean[] exists(List<Get> list) throws IOException {
+        return new Boolean[0];
     }
 
     @Override
-    public RowLock lockRow(byte[] arg0) throws IOException {
-        return htable.lockRow(arg0);
+    public boolean isAutoFlush() {
+        return htable.isAutoFlush();
     }
 
     @Override
@@ -540,13 +575,27 @@ public class HTable implements HTableInterface {
     }
 
     @Override
+    public void setAutoFlushTo(boolean b) {
+        htable.setAutoFlushTo(b);
+    }
+
+    @Override
     public void setWriteBufferSize(long arg0) throws IOException {
         htable.setWriteBufferSize(arg0);
     }
 
     @Override
-    public void unlockRow(RowLock arg0) throws IOException {
-        htable.unlockRow(arg0);
+    public <R extends Message> Map<byte[], R> batchCoprocessorService(Descriptors.MethodDescriptor methodDescriptor, Message message, byte[] bytes, byte[] bytes1, R r) throws ServiceException, Throwable {
+        return htable.batchCoprocessorService(methodDescriptor, message, bytes, bytes1, r);
     }
 
+    @Override
+    public <R extends Message> void batchCoprocessorService(Descriptors.MethodDescriptor methodDescriptor, Message message, byte[] bytes, byte[] bytes1, R r, Callback<R> callback) throws ServiceException, Throwable {
+        htable.batchCoprocessorService(methodDescriptor, message, bytes, bytes1, r, callback);
+    }
+
+    @Override
+    public boolean checkAndMutate(byte[] bytes, byte[] bytes1, byte[] bytes2, CompareFilter.CompareOp compareOp, byte[] bytes3, RowMutations rowMutations) throws IOException {
+        return htable.checkAndMutate(bytes, bytes1, bytes2, compareOp, bytes3, rowMutations);
+    }
 }
