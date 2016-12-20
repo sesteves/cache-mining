@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Scan;
@@ -19,7 +21,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 public class OperationRegionObserver extends BaseRegionObserver {
 
     @Override
-    public void preGet(ObserverContext<RegionCoprocessorEnvironment> e, Get get, List<KeyValue> results) throws IOException {
+    public void preGetOp(ObserverContext<RegionCoprocessorEnvironment> e, Get get, List<Cell> results) throws IOException {
 
         // e.bypass();
 
@@ -40,10 +42,10 @@ public class OperationRegionObserver extends BaseRegionObserver {
     }
 
     @Override
-    public void prePut(ObserverContext<RegionCoprocessorEnvironment> e, Put put, WALEdit edit, boolean writeToWAL)
+    public void prePut(ObserverContext<RegionCoprocessorEnvironment> e, Put put, WALEdit edit, Durability durability)
             throws IOException {
 
-        super.prePut(e, put, edit, writeToWAL);
+        // super.prePut(e, put, edit, writeToWAL);
     }
 
     @Override
