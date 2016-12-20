@@ -5,6 +5,7 @@ import com.google.protobuf.Message;
 import com.google.protobuf.Service;
 import com.google.protobuf.ServiceException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Append;
@@ -76,7 +77,7 @@ public class HTable implements HTableInterface {
         try {
             properties.load(new FileInputStream(PROPERTIES_FILE));
         } catch (IOException e) {
-            log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
+            log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
         }
         isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
         isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
@@ -211,12 +212,57 @@ public class HTable implements HTableInterface {
         return columns.substring(1);
     }
 
-    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
-        List<KeyValue> kvs = new ArrayList<KeyValue>();
+    private List<Cell> fetchFromCache(Get get) {
+        List<Cell> result = new ArrayList<>();
 
-        List<byte[]> familiesToRemove = new ArrayList<byte[]>();
+        String rowStr = "";
+
+        for(byte[] family : get.familySet()) {
+            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
+
+            String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+
+            if(qualifiers != null) {
+
+                for (byte[] qualifier : qualifiers) {
+
+                    String finalKey = key + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
+                    CacheEntry<List<KeyValue>> entry = cache.get(finalKey);
+                    if (entry != null) {
+                        countCacheHits++;
+
+
+                        result.addAll(entry.getValue());
+                    }
+                }
+
+
+            } else {
+
+                CacheEntry<List<KeyValue>> entry = cache.get(key);
+                if (entry != null) {
+                    countCacheHits++;
+
+
+
+
+                }
+            }
+        }
+
+
+
+
+        return result;
+    }
+
+    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
+        List<KeyValue> kvs = new ArrayList<>();
+
+        List<byte[]> familiesToRemove = new ArrayList<>();
         boolean firstItem = true;
         String key = null;
+
         for (byte[] family : get.familySet()) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
             if (qualifiers != null) {
@@ -261,6 +307,7 @@ public class HTable implements HTableInterface {
             }
             firstItem = false;
         }
+
         for (byte[] family : familiesToRemove)
             get.getFamilyMap().remove(family);
 
@@ -270,6 +317,7 @@ public class HTable implements HTableInterface {
     private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
         long startTick = System.currentTimeMillis();
 
+        // get sequences matching firstItem
         Set<String> sequence = sequenceEngine.getSequence(firstItem);
         if (sequence == null) {
             log.debug("There is no sequence indexed by key '" + firstItem + "'.");
@@ -277,45 +325,38 @@ public class HTable implements HTableInterface {
         }
 
         log.debug("There are sequences indexed by key '" + firstItem + "'.");
-        Map<String, List<Get>> gets = new HashMap<String, List<Get>>();
 
-        // FIXME return elements of sequence already batched ?
+        // TODO return elements of sequence already batched ?
         // batch updates to the same tables
+        Map<String, Get> gets = new HashMap<>();
         for (String item : sequence) {
 
-            String[] elements = item.split(":");
+            String[] elements = item.split(SequenceEngine.SEPARATOR);
             String tableName = elements[0];
             String row = elements[1];
             String family = elements[2];
             String qualifier = elements.length == 4 ? elements[3] : "";
 
-            // String key = rowStr + SequenceEngine.SEPARATOR + tableName +
-            // SequenceEngine.SEPARATOR + family
-            // + SequenceEngine.SEPARATOR + qualifier;
-
+            // TODO check if key is correct in case qualifier is empty
             String key = tableName + SequenceEngine.SEPARATOR + row + SequenceEngine.SEPARATOR + family + SequenceEngine.SEPARATOR
                     + qualifier;
-            // if current item is part of the get request or item is in cache,
-            // skip it
+
+            // TODO check why tableName must be equal to this.tableName
+            // if current item is part of the get request or item is in cache, skip it
             if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
-                    .contains(qualifier))
-                    || cache.contains(key))
+                    .contains(qualifier)) || cache.contains(key)) {
                 continue;
+            }
 
-            /*
-             * Get g = gets.get(tableName); if (g == null) g = new
-             * Get(get.getRow()); g.addColumn(Bytes.toBytes(family),
-             * Bytes.toBytes(qualifier)); gets.put(tableName, g);
-             */
-
-            List<Get> list = gets.get(tableName);
-            if (list == null)
-                list = new ArrayList<Get>();
-            Get g = new Get(strToBytes(row));
+            Get g = gets.get(tableName);
+            if (g == null) {
+                g = new Get(strToBytes(row));
+                gets.put(tableName, g);
+            }
             g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
-            list.add(g);
-            gets.put(tableName, list);
         }
+
+
 
         // pre-fetch elements to cache
         for (String tableName : gets.keySet()) {
@@ -363,42 +404,61 @@ public class HTable implements HTableInterface {
         return result;
     }
 
+
+    private void monitorGet(Get get, String rowStr) throws IOException {
+        FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
+        BufferedWriter bw = new BufferedWriter(fw);
+
+        long ts = System.currentTimeMillis();
+        Set<byte[]> families = get.familySet();
+        for (byte[] f : families) {
+            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
+            if (qualifiers != null) {
+                for (byte[] q : qualifiers) {
+                    bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
+                    bw.newLine();
+                }
+            } else {
+                bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
+                bw.newLine();
+            }
+        }
+        bw.close();
+    }
+
     @Override
     public Result get(Get get) throws IOException {
         log.info("get CALLED (TABLE: " + tableName + ", ROW: " + Bytes.toString(get.getRow()) + ", COLUMNS: "
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
-        if (!isEnabled)
+        if (!isEnabled) {
             return htable.get(get);
+        }
 
         final String rowStr = bytesToStr(get.getRow());
-
         if (isMonitoring) {
-            Result result = htable.get(get);
-            FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
-            BufferedWriter bw = new BufferedWriter(fw);
-
-            long ts = System.currentTimeMillis();
-            Set<byte[]> families = get.familySet();
-            for (byte[] f : families) {
-                NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
-                if (qualifiers != null) {
-                    for (byte[] q : qualifiers) {
-                        bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
-                        bw.newLine();
-                    }
-                } else {
-                    bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
-                    bw.newLine();
-                }
-            }
-            bw.close();
-            return result;
+            monitorGet(get, rowStr);
+            return htable.get(get);
         }
+
+        // fetch items from cache
+        List<KeyValue> kvs = getItemsFromCache(get, rowStr);
+
+
+
+        List<Cell> result = fetchFromCache(get);
+
+
 
         countGets++;
         doPrefetch = true;
 
+
+
+
+
+
+        // get first item
         byte[] family = get.familySet().iterator().next();
         // FIXME row
         StringBuilder sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + rowStr + SequenceEngine.SEPARATOR
@@ -410,8 +470,19 @@ public class HTable implements HTableInterface {
         }
         final String firstItem = sb.toString();
 
-        // fetch items from cache
-        List<KeyValue> kvs = getItemsFromCache(get, rowStr);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if (get.hasFamilies()) {
 
@@ -452,6 +523,10 @@ public class HTable implements HTableInterface {
                 + ", Prefetch ratio: " + prefetchRatio);
 
         return new Result(kvs);
+
+
+
+
     }
 
     @Override

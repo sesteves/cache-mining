@@ -5,7 +5,7 @@ import java.util.Map;
 
 public class Cache<T> {
 
-    private Map<String, CacheEntry<T>> cache = new HashMap<String, CacheEntry<T>>();
+    private Map<String, CacheEntry<T>> cache = new HashMap<>();
 
     public boolean contains(String key) {
         return cache.containsKey(key);
