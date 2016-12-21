@@ -359,32 +359,24 @@ public class HTable implements HTableInterface {
 
 
         // pre-fetch elements to cache
-        for (String tableName : gets.keySet()) {
-            Result[] results = htables.get(tableName).get(gets.get(tableName));
+        for (Map.Entry<String, Get> entry : gets.entrySet()) {
+            Result result = htables.get(entry.getKey()).get(entry.getValue());
 
-            for (Result result : results) {
-                if (result.isEmpty())
-                    continue;
-                for (KeyValue kv : result.raw()) {
-
-                    // System.out.println("### Putting in cache KeyValue with key: "
-                    // + kv.getKeyString() + ", tableName: " + tableName
-                    // + ", Family: " + Bytes.toString(kv.getFamily()) +
-                    // ", Qualifier: " + Bytes.toString(kv.getQualifier())
-                    // + ", Value: " + Bytes.toString(kv.getValue()));
-
-                    String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
-                            + Bytes.toString(kv.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(kv.getQualifier());
-                    // FIXME cache entry should correspond to a single KeyValue
-                    // ?
-                    List<KeyValue> kvs = new ArrayList<KeyValue>();
-                    kvs.add(kv);
-                    cache.put(key, new CacheEntry<List<KeyValue>>(kvs));
-                }
+            if(result.current() != null) {
+                System.out.println("#### CURRENT IS NOT NULL!!!!");
             }
 
+            while(result.advance()) {
+                Cell cell = result.current();
+
+                String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                        + Bytes.toString(cell.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(cell.getQualifier());
+
+                cache.put(key, new CacheEntry<List<KeyValue>>(cell));
+            }
+
+
         }
-        // System.out.println("### Cache contents: " + cache);
 
         long diff = System.currentTimeMillis() - startTick;
         log.debug("Time taken with prefetching: " + diff);
