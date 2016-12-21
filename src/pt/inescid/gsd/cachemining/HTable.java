@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class HTable implements HTableInterface {
 
@@ -55,7 +57,7 @@ public class HTable implements HTableInterface {
 
     private static Map<String, org.apache.hadoop.hbase.client.HTable> htables = new HashMap<String, org.apache.hadoop.hbase.client.HTable>();
 
-    private static Cache<List<KeyValue>> cache = new Cache<List<KeyValue>>();
+    private static Cache<Cell> cache = new Cache<>();
 
     private static SequenceEngine sequenceEngine = new SequenceEngine();
 
@@ -69,6 +71,15 @@ public class HTable implements HTableInterface {
     private boolean isEnabled;
 
     private boolean doPrefetch;
+
+    private Lock lockPrefetch = new ReentrantLock();
+
+    private Thread prefetch = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            prefetch();
+        }
+    });
 
     public HTable(Configuration conf, String tableName) throws IOException {
         PropertyConfigurator.configure("cachemining-log4j.properties");
@@ -90,6 +101,9 @@ public class HTable implements HTableInterface {
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
+
+        // Would it make sense to run more than 1 thread?
+        prefetch.run();
     }
 
     public void markTransaction() throws IOException {
@@ -214,6 +228,7 @@ public class HTable implements HTableInterface {
 
     private List<Cell> fetchFromCache(Get get) {
         List<Cell> result = new ArrayList<>();
+        List<byte[]> familiesToRemove = new ArrayList<>();
 
         String rowStr = "";
 
@@ -224,157 +239,173 @@ public class HTable implements HTableInterface {
 
             if(qualifiers != null) {
 
+                List<byte[]> qualifiersToRemove = new ArrayList<>();
                 for (byte[] qualifier : qualifiers) {
 
                     String finalKey = key + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
-                    CacheEntry<List<KeyValue>> entry = cache.get(finalKey);
+                    CacheEntry<Cell> entry = cache.get(finalKey);
                     if (entry != null) {
                         countCacheHits++;
-
-
-                        result.addAll(entry.getValue());
-                    }
-                }
-
-
-            } else {
-
-                CacheEntry<List<KeyValue>> entry = cache.get(key);
-                if (entry != null) {
-                    countCacheHits++;
-
-
-
-
-                }
-            }
-        }
-
-
-
-
-        return result;
-    }
-
-    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
-        List<KeyValue> kvs = new ArrayList<>();
-
-        List<byte[]> familiesToRemove = new ArrayList<>();
-        boolean firstItem = true;
-        String key = null;
-
-        for (byte[] family : get.familySet()) {
-            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-            if (qualifiers != null) {
-                List<byte[]> qualifiersToRemove = new ArrayList<byte[]>();
-
-                for (byte[] qualifier : qualifiers) {
-                    key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family)
-                            + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
-
-                    // System.out.println("Looking up in cache for key '" + key
-                    // + "'");
-                    CacheEntry<List<KeyValue>> entry = cache.get(key);
-                    if (entry != null) {
-                        countCacheHits++;
-
-                        if (firstItem)
-                            doPrefetch = false;
-
-                        // System.out.println("Cache hit: " + countCacheHits);
-                        kvs.addAll(entry.getValue());
+                        result.add(entry.getValue());
                         qualifiersToRemove.add(qualifier);
                     }
                 }
                 qualifiers.removeAll(qualifiersToRemove);
-                if (qualifiers.size() == 0)
+                if (qualifiers.size() == 0) {
                     familiesToRemove.add(family);
-            } else {
-                key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+                }
 
-                // System.out.println("Looking up in cache for key '" + key +
-                // "'");
-                CacheEntry<List<KeyValue>> entry = cache.get(key);
+            } else {
+
+                CacheEntry<Cell> entry = cache.get(key);
                 if (entry != null) {
                     countCacheHits++;
-
-                    if (firstItem)
-                        doPrefetch = false;
-                    // System.out.println("Cache hit: " + countCacheHits);
-                    kvs.addAll(entry.getValue());
+                    result.add(entry.getValue());
                     familiesToRemove.add(family);
                 }
             }
-            firstItem = false;
         }
 
-        for (byte[] family : familiesToRemove)
+        for (byte[] family : familiesToRemove) {
             get.getFamilyMap().remove(family);
+        }
 
-        return kvs;
+        return result;
     }
 
-    private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
-        long startTick = System.currentTimeMillis();
+//    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
+//        List<KeyValue> kvs = new ArrayList<>();
+//
+//        List<byte[]> familiesToRemove = new ArrayList<>();
+//        boolean firstItem = true;
+//        String key = null;
+//
+//        for (byte[] family : get.familySet()) {
+//            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
+//            if (qualifiers != null) {
+//                List<byte[]> qualifiersToRemove = new ArrayList<byte[]>();
+//
+//                for (byte[] qualifier : qualifiers) {
+//                    key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family)
+//                            + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
+//
+//                    // System.out.println("Looking up in cache for key '" + key
+//                    // + "'");
+//                    CacheEntry<List<KeyValue>> entry = cache.get(key);
+//                    if (entry != null) {
+//                        countCacheHits++;
+//
+//                        if (firstItem)
+//                            doPrefetch = false;
+//
+//                        // System.out.println("Cache hit: " + countCacheHits);
+//                        kvs.addAll(entry.getValue());
+//                        qualifiersToRemove.add(qualifier);
+//                    }
+//                }
+//                qualifiers.removeAll(qualifiersToRemove);
+//                if (qualifiers.size() == 0)
+//                    familiesToRemove.add(family);
+//            } else {
+//                key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+//
+//                // System.out.println("Looking up in cache for key '" + key +
+//                // "'");
+//                CacheEntry<List<KeyValue>> entry = cache.get(key);
+//                if (entry != null) {
+//                    countCacheHits++;
+//
+//                    if (firstItem)
+//                        doPrefetch = false;
+//                    // System.out.println("Cache hit: " + countCacheHits);
+//                    kvs.addAll(entry.getValue());
+//                    familiesToRemove.add(family);
+//                }
+//            }
+//            firstItem = false;
+//        }
+//
+//        for (byte[] family : familiesToRemove)
+//            get.getFamilyMap().remove(family);
+//
+//        return kvs;
+//    }
 
-        // get sequences matching firstItem
-        Set<String> sequence = sequenceEngine.getSequence(firstItem);
-        if (sequence == null) {
-            log.debug("There is no sequence indexed by key '" + firstItem + "'.");
-            return;
-        }
+    private void prefetch() {
+//        private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
 
-        log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
-        // TODO return elements of sequence already batched ?
-        // batch updates to the same tables
-        Map<String, Get> gets = new HashMap<>();
-        for (String item : sequence) {
 
-            String[] elements = item.split(SequenceEngine.SEPARATOR);
-            String tableName = elements[0];
-            String row = elements[1];
-            String family = elements[2];
-            String qualifier = elements.length == 4 ? elements[3] : "";
+        while(true) {
 
-            // TODO check if key is correct in case qualifier is empty
-            String key = tableName + SequenceEngine.SEPARATOR + row + SequenceEngine.SEPARATOR + family + SequenceEngine.SEPARATOR
-                    + qualifier;
 
-            // TODO check why tableName must be equal to this.tableName
-            // if current item is part of the get request or item is in cache, skip it
-            if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
-                    .contains(qualifier)) || cache.contains(key)) {
-                continue;
+            lockPrefetch.lock();
+
+            long startTick = System.currentTimeMillis();
+
+            try {
+
+                // get sequences matching firstItem
+                Set<String> sequence = sequenceEngine.getSequence(firstItem);
+                if (sequence == null) {
+                    log.debug("There is no sequence indexed by key '" + firstItem + "'.");
+                    return;
+                }
+
+                log.debug("There are sequences indexed by key '" + firstItem + "'.");
+
+                // TODO return elements of sequence already batched ?
+                // batch updates to the same tables
+                Map<String, Get> gets = new HashMap<>();
+                for (String item : sequence) {
+
+                    String[] elements = item.split(SequenceEngine.SEPARATOR);
+                    String tableName = elements[0];
+                    String row = elements[1];
+                    String family = elements[2];
+                    String qualifier = elements.length == 4 ? elements[3] : "";
+
+                    String key = tableName + SequenceEngine.SEPARATOR + row + SequenceEngine.SEPARATOR + family;
+                    if (!"".equals(qualifier)) {
+                        key += SequenceEngine.SEPARATOR + qualifier;
+                    }
+
+                    // if current item is part of the get request or item is in cache, skip it
+                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
+                            .contains(qualifier)) || cache.contains(key)) {
+                        continue;
+                    }
+
+                    Get g = gets.get(tableName);
+                    if (g == null) {
+                        g = new Get(strToBytes(row));
+                        gets.put(tableName, g);
+                    }
+                    g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
+                }
+
+
+                // pre-fetch elements to cache
+                for (Map.Entry<String, Get> entry : gets.entrySet()) {
+                    Result result = htables.get(entry.getKey()).get(entry.getValue());
+
+                    if (result.current() != null) {
+                        System.out.println("#### CURRENT IS NOT NULL!!!!");
+                    }
+
+                    while (result.advance()) {
+                        Cell cell = result.current();
+
+                        String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                                + Bytes.toString(cell.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(cell.getQualifier());
+
+                        cache.put(key, new CacheEntry<>(cell));
+                    }
+
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-
-            Get g = gets.get(tableName);
-            if (g == null) {
-                g = new Get(strToBytes(row));
-                gets.put(tableName, g);
-            }
-            g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
-        }
-
-
-
-        // pre-fetch elements to cache
-        for (Map.Entry<String, Get> entry : gets.entrySet()) {
-            Result result = htables.get(entry.getKey()).get(entry.getValue());
-
-            if(result.current() != null) {
-                System.out.println("#### CURRENT IS NOT NULL!!!!");
-            }
-
-            while(result.advance()) {
-                Cell cell = result.current();
-
-                String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
-                        + Bytes.toString(cell.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(cell.getQualifier());
-
-                cache.put(key, new CacheEntry<List<KeyValue>>(cell));
-            }
-
 
         }
 
@@ -434,91 +465,28 @@ public class HTable implements HTableInterface {
         }
 
         // fetch items from cache
-        List<KeyValue> kvs = getItemsFromCache(get, rowStr);
-
-
-
         List<Cell> result = fetchFromCache(get);
 
 
+        if(get.hasFamilies()) {
+            // prefetch sequences in the background
 
-        countGets++;
-        doPrefetch = true;
-
-
-
-
-
-
-        // get first item
-        byte[] family = get.familySet().iterator().next();
-        // FIXME row
-        StringBuilder sb = new StringBuilder(tableName + SequenceEngine.SEPARATOR + rowStr + SequenceEngine.SEPARATOR
-                + Bytes.toString(family));
-
-        if (get.getFamilyMap().get(family) != null) {
-            String qualifier = Bytes.toString(get.getFamilyMap().get(family).iterator().next());
-            sb.append(SequenceEngine.SEPARATOR + qualifier);
-        }
-        final String firstItem = sb.toString();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if (get.hasFamilies()) {
+            lockPrefetch.unlock();
 
             countEffectiveGets++;
-
-            // prefetch
-            if (doPrefetch) {
-                countPrefetch++;
-
-                final Get finalGet = get;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            prefetch(finalGet, rowStr, firstItem);
-                        } catch (IOException e) {
-                            log.fatal(e.getMessage());
-                        }
-                    }
-                }).run();
-
-            }
-
-            // get remaining items
             Result partialResult = htable.get(get);
-
-            // merge results
-            if (!partialResult.isEmpty()) {
-                kvs.addAll(partialResult.list());
-                Collections.sort(kvs, KeyValue.COMPARATOR);
-            }
+            // TODO check if it is necessary to sort cells
+            result.addAll(partialResult.listCells());
         }
 
+        countGets++;
         double cacheHitRate = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countEffectiveGets / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
         log.debug("Total gets: " + countGets + ", Cache hit rate: " + cacheHitRate + ", Effective gets: " + effectiveGets
                 + ", Prefetch ratio: " + prefetchRatio);
 
-        return new Result(kvs);
-
-
-
-
+        return new Result().create(result);
     }
 
     @Override
