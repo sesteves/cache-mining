@@ -40,7 +40,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -73,6 +76,10 @@ public class HTable implements HTableInterface {
     private boolean doPrefetch;
 
     private Lock lockPrefetch = new ReentrantLock();
+
+    private Queue<Get> prefetchQueue = new ConcurrentLinkedQueue<Get>();
+
+    private final Semaphore prefetchSemaphore = new Semaphore(0);
 
     private Thread prefetch = new Thread(new Runnable() {
         @Override
@@ -334,24 +341,29 @@ public class HTable implements HTableInterface {
     private void prefetch() {
 //        private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
 
-
-
         while(true) {
 
-
-            lockPrefetch.lock();
-
-            long startTick = System.currentTimeMillis();
-
             try {
+                prefetchSemaphore.acquire();
+                Get get = prefetchQueue.poll();
 
+
+                long startTick = System.currentTimeMillis();
+
+
+                Map.Entry e = get.getFamilyMap().entrySet().iterator().next();
+                String firstItem = tableName + SequenceEngine.SEPARATOR + get.getRow() + SequenceEngine.SEPARATOR +
+                        e.getKey() + SequenceEngine.SEPARATOR + e.getValue();
+
+                System.out.println("First item: " + firstItem);
+
+                // TODO sequence should not be a set, but a list in order to maintain order
                 // get sequences matching firstItem
                 Set<String> sequence = sequenceEngine.getSequence(firstItem);
                 if (sequence == null) {
                     log.debug("There is no sequence indexed by key '" + firstItem + "'.");
                     return;
                 }
-
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
                 // TODO return elements of sequence already batched ?
@@ -371,8 +383,8 @@ public class HTable implements HTableInterface {
                     }
 
                     // if current item is part of the get request or item is in cache, skip it
-                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap().get(family)
-                            .contains(qualifier)) || cache.contains(key)) {
+                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap()
+                            .get(family).contains(qualifier)) || cache.contains(key)) {
                         continue;
                     }
 
@@ -396,21 +408,21 @@ public class HTable implements HTableInterface {
                     while (result.advance()) {
                         Cell cell = result.current();
 
-                        String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
+                        String key = bytesToStr(result.getRow()) + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
                                 + Bytes.toString(cell.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(cell.getQualifier());
 
                         cache.put(key, new CacheEntry<>(cell));
                     }
 
                 }
-            } catch (IOException e) {
+
+                long diff = System.currentTimeMillis() - startTick;
+                log.debug("Time taken with prefetching: " + diff);
+
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-
         }
-
-        long diff = System.currentTimeMillis() - startTick;
-        log.debug("Time taken with prefetching: " + diff);
     }
 
     private String bytesToStr(byte[] arr) {
@@ -471,7 +483,8 @@ public class HTable implements HTableInterface {
         if(get.hasFamilies()) {
             // prefetch sequences in the background
 
-            lockPrefetch.unlock();
+            prefetchQueue.add(get);
+            prefetchSemaphore.release();
 
             countEffectiveGets++;
             Result partialResult = htable.get(get);
