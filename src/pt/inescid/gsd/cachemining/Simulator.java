@@ -2,6 +2,7 @@ package pt.inescid.gsd.cachemining;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.hbase.client.Result;
@@ -37,7 +38,7 @@ public class Simulator {
 
                 System.out.println("KEY ---> " + key);
 
-                Set<String> sequence = sequenceEngine.getSequence(key);
+                List<String> sequence = sequenceEngine.getSequence(key);
                 if (sequence == null) {
                     System.out.println("NO SEQUENCE.");
                     continue;

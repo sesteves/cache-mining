@@ -5,9 +5,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -27,7 +29,7 @@ public class SequenceEngine {
 
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
-    private Map<String, Set<String>> sequences = new HashMap<String, Set<String>>();
+    private Map<String, List<String>> sequences = new HashMap<>();
 
 	private String sequencesFile;
 
@@ -45,6 +47,20 @@ public class SequenceEngine {
         loadSequences();
     }
 
+    public SequenceEngine(Map<String, List<String>> sequences) {
+        PropertyConfigurator.configure("cachemining-log4j.properties");
+
+        Properties properties = new Properties();
+        try {
+            properties.load(new FileInputStream(PROPERTIES_FILE));
+        } catch (IOException e) {
+            log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
+        }
+
+        this.sequences = sequences;
+        log.info("Loaded " + sequences.size() + " sequences");
+    }
+
     private void loadSequences() {
 
         try {
@@ -57,10 +73,10 @@ public class SequenceEngine {
                 countSequences += items.length;
 
                 if (sequences.containsKey(items[0])) {
-                    Set<String> itemsSet = sequences.get(items[0]);
+                    List<String> itemsSet = sequences.get(items[0]);
                     itemsSet.addAll(Arrays.asList(items));
                 } else {
-                    sequences.put(items[0], new HashSet<String>(Arrays.asList(items)));
+                    sequences.put(items[0], new ArrayList<>(Arrays.asList(items)));
                 }
 
             }
@@ -75,7 +91,7 @@ public class SequenceEngine {
         }
     }
 
-    public Set<String> getSequence(String key) {
+    public List<String> getSequence(String key) {
         return sequences.get(key);
     }
 

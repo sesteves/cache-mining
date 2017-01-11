@@ -62,7 +62,7 @@ public class HTable implements HTableInterface {
 
     private static Cache<Cell> cache = new Cache<>();
 
-    private static SequenceEngine sequenceEngine = new SequenceEngine();
+    private static SequenceEngine sequenceEngine;
 
     private org.apache.hadoop.hbase.client.HTable htable;
     private File filePut, fileGet;
@@ -110,7 +110,14 @@ public class HTable implements HTableInterface {
         htables.put(tableName, htable);
 
         // Would it make sense to run more than 1 thread?
-        prefetch.run();
+        prefetch.start();
+
+        // TODO create sequence engine without sequences
+    }
+
+    public HTable(Configuration conf, String tableName, Map<String, List<String>> sequences) throws IOException {
+        this(conf, tableName);
+        sequenceEngine = new SequenceEngine(sequences);
     }
 
     public void markTransaction() throws IOException {
@@ -351,20 +358,30 @@ public class HTable implements HTableInterface {
                 long startTick = System.currentTimeMillis();
 
 
-                Map.Entry e = get.getFamilyMap().entrySet().iterator().next();
-                String firstItem = tableName + SequenceEngine.SEPARATOR + get.getRow() + SequenceEngine.SEPARATOR +
-                        e.getKey() + SequenceEngine.SEPARATOR + e.getValue();
+                Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
+                String firstItem = tableName + SequenceEngine.SEPARATOR + Bytes.toString(get.getRow()) +
+                        SequenceEngine.SEPARATOR + Bytes.toString(e.getKey()) + SequenceEngine.SEPARATOR +
+                        Bytes.toString(e.getValue().iterator().next());
 
                 System.out.println("First item: " + firstItem);
 
                 // TODO sequence should not be a set, but a list in order to maintain order
                 // get sequences matching firstItem
-                Set<String> sequence = sequenceEngine.getSequence(firstItem);
+                List<String> sequence = sequenceEngine.getSequence(firstItem);
                 if (sequence == null) {
                     log.debug("There is no sequence indexed by key '" + firstItem + "'.");
                     return;
                 }
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
+
+
+
+                for (String item : sequence) {
+
+                }
+
+
+
 
                 // TODO return elements of sequence already batched ?
                 // batch updates to the same tables
@@ -388,9 +405,10 @@ public class HTable implements HTableInterface {
                         continue;
                     }
 
+                    // TODO get different rows - 1 get / row
                     Get g = gets.get(tableName);
                     if (g == null) {
-                        g = new Get(strToBytes(row));
+                        g = new Get(Bytes.toBytes(row));
                         gets.put(tableName, g);
                     }
                     g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
