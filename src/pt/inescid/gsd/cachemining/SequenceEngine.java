@@ -29,7 +29,9 @@ public class SequenceEngine {
 
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
-    private Map<String, List<String>> sequences = new HashMap<>();
+    // private Map<String, List<String>> sequences = new HashMap<>();
+
+    private Map<String, Node> sequences = new HashMap<>();
 
 	private String sequencesFile;
 
@@ -98,6 +100,21 @@ public class SequenceEngine {
     public static void main(String[] args) {
         SequenceEngine engine = new SequenceEngine();
         engine.loadSequences();
+    }
+
+    private class Node {
+
+        private String value;
+
+        private Map<Double, Node> children;
+
+        public Node(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 
 }
