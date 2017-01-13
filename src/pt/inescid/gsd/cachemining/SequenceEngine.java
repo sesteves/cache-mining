@@ -49,7 +49,7 @@ public class SequenceEngine {
         loadSequences();
     }
 
-    public SequenceEngine(Map<String, List<String>> sequences) {
+    public SequenceEngine(List<List<String>> sequences) {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
         Properties properties = new Properties();
@@ -59,7 +59,59 @@ public class SequenceEngine {
             log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
         }
 
-        this.sequences = sequences;
+
+
+        // load sequences
+        for(List<String> sequence : sequences) {
+
+
+
+
+
+            for(int i = 0; i < sequence.size(); i++) {
+
+                if (i == 0) {
+
+
+
+                }
+
+
+
+            }
+
+
+            String firstItem = sequence.get(0);
+
+            Node parent;
+            if(this.sequences.containsKey(firstItem)) {
+               parent = this.sequences.get(firstItem);
+            } else {
+                parent = new Node(firstItem);
+                this.sequences.put(firstItem, parent);
+            }
+
+            for(String item : sequence) {
+
+                Node node = new Node(item);
+                parent.addChild();
+
+            }
+
+
+
+
+
+        }
+
+
+
+
+
+
+
+
+
         log.info("Loaded " + sequences.size() + " sequences");
     }
 
@@ -106,10 +158,14 @@ public class SequenceEngine {
 
         private String value;
 
-        private Map<Double, Node> children;
+        private List<Node> children;
 
         public Node(String value) {
             this.value = value;
+        }
+
+        public void addChild(Node node, double probability) {
+
         }
 
         public String getValue() {

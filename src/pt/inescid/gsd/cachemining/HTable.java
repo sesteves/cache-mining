@@ -115,7 +115,7 @@ public class HTable implements HTableInterface {
         // TODO create sequence engine without sequences
     }
 
-    public HTable(Configuration conf, String tableName, Map<String, List<String>> sequences) throws IOException {
+    public HTable(Configuration conf, String tableName, List<List<String>> sequences) throws IOException {
         this(conf, tableName);
         sequenceEngine = new SequenceEngine(sequences);
     }
