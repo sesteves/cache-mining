@@ -20,13 +20,12 @@ public class SequenceEngine {
 	
 	private final static String SEQUENCES_FILE_KEY = "sequencesFile";
 	private final static String SEQUENCES_FILE_DEFAULT = "sequences.txt";
-	
-	
+
     public final static String SEPARATOR = ":";
 
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
-    private Map<String, Node> sequences = new HashMap<>();
+    private Map<DataContainer, Node> sequences = new HashMap<>();
 
 	private String sequencesFile;
 
@@ -44,7 +43,7 @@ public class SequenceEngine {
         // loadSequences();
     }
 
-    public SequenceEngine(List<List<String>> sequences) {
+    public SequenceEngine(List<List<DataContainer>> sequences) {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
         Properties properties = new Properties();
@@ -55,10 +54,10 @@ public class SequenceEngine {
         }
 
         // load sequences
-        for(List<String> sequence : sequences) {
+        for(List<DataContainer> sequence : sequences) {
             Node parent = null;
             for(int i = 0; i < sequence.size(); i++) {
-                String item = sequence.get(i);
+                DataContainer item = sequence.get(i);
                 if (i == 0) {
                     if(this.sequences.containsKey(item)) {
                         parent = this.sequences.get(item);
@@ -69,7 +68,17 @@ public class SequenceEngine {
                 } else {
                     Node node = new Node(item);
                     parent.addChild(node, 1.0);
+                    parent = node;
                 }
+            }
+        }
+
+        // add special nodes at the end of each level
+        for (Node root : this.sequences.values()) {
+            Node node = root;
+            while(node.children != null) {
+                node.addChild(new Node(),1);
+                node = node.children.get(node.children.size() - 2);
             }
         }
 
@@ -106,7 +115,7 @@ public class SequenceEngine {
 //        }
 //    }
 
-    public Iterator<String> getSequences(String key) {
+    public Iterator<DataContainer> getSequences(String key) {
         Node root = sequences.get(key);
         if(root == null) {
             return null;
@@ -123,9 +132,9 @@ public class SequenceEngine {
      *
      * TODO: add dummy node to check for depth
      */
-    private class SequenceIterator implements Iterator<String> {
+    private class SequenceIterator implements Iterator<DataContainer> {
 
-        private static final int DEPTH = 100;
+        private static final int MAX_DEPTH = 100;
 
         private Node parent;
 
@@ -142,6 +151,7 @@ public class SequenceEngine {
             if(parent.children != null) {
                 currentNode = parent.children.get(currentChild);
                 queue.add(currentNode);
+                currentDepth = 1;
             }
         }
 
@@ -151,23 +161,27 @@ public class SequenceEngine {
         }
 
         @Override
-        public String next() {
+        public DataContainer next() {
             Node result = currentNode;
 
-            if(parent.children.size() - 1 == currentChild) {
-                if(!queue.isEmpty()) {
-                    parent = queue.poll();
-                    currentChild = 0;
-                    currentNode = parent.children.get(currentChild);
+            do {
+                if (parent.children.size() - 1 == currentChild) {
+                    if (!queue.isEmpty()) {
+                        parent = queue.poll();
+                        currentChild = 0;
+                        currentNode = parent.children.get(currentChild);
+                    } else {
+                        currentNode = null;
+                    }
                 } else {
-                    currentNode = null;
+                    currentNode = parent.children.get(++currentChild);
+                    if (currentNode.value == null) {
+                        currentDepth++;
+                    } else if (currentNode.children != null) {
+                        queue.add(currentNode);
+                    }
                 }
-            } else {
-                currentNode = parent.children.get(++currentChild);
-                if(currentNode.children != null) {
-                    queue.add(currentNode);
-                }
-            }
+            } while (currentNode.value == null);
 
             return result.value;
         }
@@ -183,11 +197,13 @@ public class SequenceEngine {
 
     private class Node {
 
-        private String value;
+        private DataContainer value = null;
 
         private List<Node> children;
 
-        public Node(String value) {
+        public Node() {}
+
+        public Node(DataContainer value) {
             this.value = value;
         }
 

@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -115,7 +116,7 @@ public class HTable implements HTableInterface {
         // TODO create sequence engine without sequences
     }
 
-    public HTable(Configuration conf, String tableName, List<List<String>> sequences) throws IOException {
+    public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
         this(conf, tableName);
         sequenceEngine = new SequenceEngine(sequences);
     }
@@ -365,18 +366,19 @@ public class HTable implements HTableInterface {
 
                 System.out.println("First item: " + firstItem);
 
-                // TODO sequence should not be a set, but a list in order to maintain order
                 // get sequences matching firstItem
-                List<String> sequence = sequenceEngine.getSequence(firstItem);
-                if (sequence == null) {
+                Iterator<DataContainer> itemsIt = sequenceEngine.getSequences(firstItem);
+                if (itemsIt == null) {
                     log.debug("There is no sequence indexed by key '" + firstItem + "'.");
                     return;
                 }
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
+                Map<String, Get> gets = new HashMap<>();
+                while(itemsIt.hasNext()) {
+                    DataContainer item = itemsIt.next();
 
 
-                for (String item : sequence) {
 
                 }
 
