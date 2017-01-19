@@ -245,20 +245,16 @@ public class HTable implements HTableInterface {
         List<Cell> result = new ArrayList<>();
         List<byte[]> familiesToRemove = new ArrayList<>();
 
-        String rowStr = "";
-
         for(byte[] family : get.familySet()) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-
-            String key = rowStr + DataContainer.SEPARATOR + tableName + DataContainer.SEPARATOR + Bytes.toString(family);
 
             if(qualifiers != null) {
 
                 List<byte[]> qualifiersToRemove = new ArrayList<>();
                 for (byte[] qualifier : qualifiers) {
 
-                    String finalKey = key + DataContainer.SEPARATOR + Bytes.toString(qualifier);
-                    CacheEntry<Cell> entry = cache.get(finalKey);
+                    String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
+                    CacheEntry<Cell> entry = cache.get(key);
                     if (entry != null) {
                         countCacheHits++;
                         result.add(entry.getValue());
@@ -271,7 +267,7 @@ public class HTable implements HTableInterface {
                 }
 
             } else {
-
+                String key = DataContainer.getKey(tableName, get.getRow(), family);
                 CacheEntry<Cell> entry = cache.get(key);
                 if (entry != null) {
                     countCacheHits++;
@@ -376,9 +372,14 @@ public class HTable implements HTableInterface {
                 while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
 
-                    // if current item is part of the get request or item is in cache, skip it
-                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(item.getFamily()) && get.getFamilyMap()
-                            .get(item.getFamily()).contains(item.getQualifier())) || cache.contains(item.toString())) {
+                    // TODO fix following code
+                    // if either current item is part of the get request or item is in cache, skip it
+//                    if ((tableName.equals(item.getTableStr()) && get.getFamilyMap().containsKey(item.getFamily()) &&
+//                            get.getFamilyMap().get(item.getFamily()).contains(item.getQualifier())) ||
+//                            cache.contains(item.toString())) {
+//                        continue;
+//                    }
+                    if(cache.contains(item.toString())) {
                         continue;
                     }
 
@@ -403,11 +404,6 @@ public class HTable implements HTableInterface {
                     Result[] results = htables.get(tableName).get(entry.getValue());
 
                     for (Result result : results) {
-
-                        if (result.current() != null) {
-                            System.out.println("#### CURRENT IS NOT NULL!!!!");
-                        }
-
                         while (result.advance()) {
                             Cell cell = result.current();
                             String key = DataContainer.getKey(entry.getKey(), cell);

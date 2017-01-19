@@ -53,29 +53,34 @@ public class DataContainer {
     }
 
     private void buildStringRepresentation() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(tableStr);
-        if (rowStr != null)
-            sb.append(SEPARATOR + rowStr);
-        if(familyStr != null)
-            sb.append(SEPARATOR + familyStr);
-        if(qualifierStr != null)
-            sb.append(SEPARATOR + qualifierStr);
+        StringBuilder sb = new StringBuilder(tableStr);
+        if (rowStr != null) sb.append(SEPARATOR + rowStr);
+        if (familyStr != null) sb.append(SEPARATOR + familyStr);
+        if (qualifierStr != null) sb.append(SEPARATOR + qualifierStr);
 
         stringRepresentation = sb.toString();
     }
 
     // TODO change deprecated methods
     public static String getKey(String tableName, Cell cell) {
-        StringBuilder sb = new StringBuilder(Bytes.toString(cell.getRow()) + SEPARATOR + tableName + SEPARATOR +
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toString(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
 
         // TODO check correctness
-        if(cell.getQualifierArray() != null) {
+        if (cell.getQualifierArray() != null) {
             sb.append(SEPARATOR + Bytes.toString(cell.getQualifier()));
         }
 
         return sb.toString();
+    }
+
+    public static String getKey(String tableName, byte[] row, byte[] family) {
+        return tableName + SEPARATOR + Bytes.toString(row) + SEPARATOR + Bytes.toString(family);
+    }
+
+    public static String getKey(String tableName, byte[] row, byte[] family, byte[] qualifier) {
+        return tableName + SEPARATOR + Bytes.toString(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
+                Bytes.toString(qualifier);
     }
 
     public String getTableStr() {
