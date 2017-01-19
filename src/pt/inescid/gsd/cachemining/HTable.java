@@ -250,14 +250,14 @@ public class HTable implements HTableInterface {
         for(byte[] family : get.familySet()) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
 
-            String key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
+            String key = rowStr + DataContainer.SEPARATOR + tableName + DataContainer.SEPARATOR + Bytes.toString(family);
 
             if(qualifiers != null) {
 
                 List<byte[]> qualifiersToRemove = new ArrayList<>();
                 for (byte[] qualifier : qualifiers) {
 
-                    String finalKey = key + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
+                    String finalKey = key + DataContainer.SEPARATOR + Bytes.toString(qualifier);
                     CacheEntry<Cell> entry = cache.get(finalKey);
                     if (entry != null) {
                         countCacheHits++;
@@ -355,14 +355,11 @@ public class HTable implements HTableInterface {
                 prefetchSemaphore.acquire();
                 Get get = prefetchQueue.poll();
 
-
                 long startTick = System.currentTimeMillis();
 
-
                 Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
-                String firstItem = tableName + SequenceEngine.SEPARATOR + Bytes.toString(get.getRow()) +
-                        SequenceEngine.SEPARATOR + Bytes.toString(e.getKey()) + SequenceEngine.SEPARATOR +
-                        Bytes.toString(e.getValue().iterator().next());
+                DataContainer firstItem = new DataContainer(getTableName(), get.getRow(), e.getKey(),
+                        e.getValue().iterator().next());
 
                 System.out.println("First item: " + firstItem);
 
@@ -374,66 +371,49 @@ public class HTable implements HTableInterface {
                 }
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
-                Map<String, Get> gets = new HashMap<>();
-                while(itemsIt.hasNext()) {
+                // batch updates to the same tables
+                Map<String, List<Get>> gets = new HashMap<>();
+                while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
 
-
-
-                }
-
-
-
-
-                // TODO return elements of sequence already batched ?
-                // batch updates to the same tables
-                Map<String, Get> gets = new HashMap<>();
-                for (String item : sequence) {
-
-                    String[] elements = item.split(SequenceEngine.SEPARATOR);
-                    String tableName = elements[0];
-                    String row = elements[1];
-                    String family = elements[2];
-                    String qualifier = elements.length == 4 ? elements[3] : "";
-
-                    String key = tableName + SequenceEngine.SEPARATOR + row + SequenceEngine.SEPARATOR + family;
-                    if (!"".equals(qualifier)) {
-                        key += SequenceEngine.SEPARATOR + qualifier;
-                    }
-
                     // if current item is part of the get request or item is in cache, skip it
-                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(family) && get.getFamilyMap()
-                            .get(family).contains(qualifier)) || cache.contains(key)) {
+                    if ((this.tableName == tableName && get.getFamilyMap().containsKey(item.getFamily()) && get.getFamilyMap()
+                            .get(item.getFamily()).contains(item.getQualifier())) || cache.contains(item.toString())) {
                         continue;
                     }
 
-                    // TODO get different rows - 1 get / row
-                    Get g = gets.get(tableName);
-                    if (g == null) {
-                        g = new Get(Bytes.toBytes(row));
-                        gets.put(tableName, g);
+                    List<Get> tableGets = gets.get(item.getTableStr());
+                    if (tableGets == null) {
+                        tableGets = new ArrayList<>();
+                        gets.put(item.getTableStr(), tableGets);
                     }
-                    g.addColumn(Bytes.toBytes(family), Bytes.toBytes(qualifier));
+                    Get g = new Get(item.getRow());
+                    if(item.getQualifier() == null) {
+                        g.addFamily(item.getFamily());
+                    } else {
+                        g.addColumn(item.getFamily(), item.getQualifier());
+                    }
+                    tableGets.add(g);
                 }
 
-
+                // TODO this scheme disrupts the order by which items are retrieved from the iterator
                 // pre-fetch elements to cache
-                for (Map.Entry<String, Get> entry : gets.entrySet()) {
-                    Result result = htables.get(entry.getKey()).get(entry.getValue());
+                for (Map.Entry<String, List<Get>> entry : gets.entrySet()) {
+                    String tableName = entry.getKey();
+                    Result[] results = htables.get(tableName).get(entry.getValue());
 
-                    if (result.current() != null) {
-                        System.out.println("#### CURRENT IS NOT NULL!!!!");
+                    for (Result result : results) {
+
+                        if (result.current() != null) {
+                            System.out.println("#### CURRENT IS NOT NULL!!!!");
+                        }
+
+                        while (result.advance()) {
+                            Cell cell = result.current();
+                            String key = DataContainer.getKey(entry.getKey(), cell);
+                            cache.put(key, new CacheEntry<>(cell));
+                        }
                     }
-
-                    while (result.advance()) {
-                        Cell cell = result.current();
-
-                        String key = bytesToStr(result.getRow()) + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR
-                                + Bytes.toString(cell.getFamily()) + SequenceEngine.SEPARATOR + Bytes.toString(cell.getQualifier());
-
-                        cache.put(key, new CacheEntry<>(cell));
-                    }
-
                 }
 
                 long diff = System.currentTimeMillis() - startTick;

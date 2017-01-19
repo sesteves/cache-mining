@@ -1,5 +1,6 @@
 package pt.inescid.gsd.cachemining;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.util.Arrays;
@@ -64,36 +65,37 @@ public class DataContainer {
         stringRepresentation = sb.toString();
     }
 
-    public byte[] getTable() {
-        return table;
+    // TODO change deprecated methods
+    public static String getKey(String tableName, Cell cell) {
+        StringBuilder sb = new StringBuilder(Bytes.toString(cell.getRow()) + SEPARATOR + tableName + SEPARATOR +
+                Bytes.toString(cell.getFamily()));
+
+        // TODO check correctness
+        if(cell.getQualifierArray() != null) {
+            sb.append(SEPARATOR + Bytes.toString(cell.getQualifier()));
+        }
+
+        return sb.toString();
     }
 
-    public void setTable(byte[] table) {
-        this.table = table;
+    public String getTableStr() {
+        return tableStr;
+    }
+
+    public byte[] getTable() {
+        return table;
     }
 
     public byte[] getRow() {
         return row;
     }
 
-    public void setRow(byte[] row) {
-        this.row = row;
-    }
-
     public byte[] getFamily() {
         return family;
     }
 
-    public void setFamily(byte[] family) {
-        this.family = family;
-    }
-
     public byte[] getQualifier() {
         return qualifier;
-    }
-
-    public void setQualifier(byte[] qualifier) {
-        this.qualifier = qualifier;
     }
 
 

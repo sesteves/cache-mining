@@ -21,8 +21,6 @@ public class SequenceEngine {
 	private final static String SEQUENCES_FILE_KEY = "sequencesFile";
 	private final static String SEQUENCES_FILE_DEFAULT = "sequences.txt";
 
-    public final static String SEPARATOR = ":";
-
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
     private Map<DataContainer, Node> sequences = new HashMap<>();
@@ -115,7 +113,7 @@ public class SequenceEngine {
 //        }
 //    }
 
-    public Iterator<DataContainer> getSequences(String key) {
+    public Iterator<DataContainer> getSequences(DataContainer key) {
         Node root = sequences.get(key);
         if(root == null) {
             return null;
@@ -170,8 +168,12 @@ public class SequenceEngine {
                         parent = queue.poll();
                         currentChild = 0;
                         currentNode = parent.children.get(currentChild);
+                        if(currentNode.children != null) {
+                            queue.add(currentNode);
+                        }
                     } else {
                         currentNode = null;
+                        break;
                     }
                 } else {
                     currentNode = parent.children.get(++currentChild);

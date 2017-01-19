@@ -34,25 +34,25 @@ public class Simulator {
                 String colFamily = elements[3];
                 String colQualifier = elements.length == 5 ? elements[4] : "";
 
-                String key = tableName + SequenceEngine.SEPARATOR + colFamily + SequenceEngine.SEPARATOR + colQualifier;
+                String key = tableName + DataContainer.SEPARATOR + colFamily + DataContainer.SEPARATOR + colQualifier;
 
                 System.out.println("KEY ---> " + key);
 
-                List<String> sequence = sequenceEngine.getSequence(key);
-                if (sequence == null) {
-                    System.out.println("NO SEQUENCE.");
-                    continue;
-                }
-                System.out.print("SEQUENCE-> ");
-                for (String container : sequence) {
-                    elements = container.split(":");
-                    String containerTableName = elements[0];
-                    String containerColFamily = elements[1];
-                    // String containerColQualifier = elements[2];
-
-                    System.out.print(container + ", ");
-                }
-                System.out.println();
+//                List<String> sequence = sequenceEngine.getSequences(key);
+//                if (sequence == null) {
+//                    System.out.println("NO SEQUENCE.");
+//                    continue;
+//                }
+//                System.out.print("SEQUENCE-> ");
+//                for (String container : sequence) {
+//                    elements = container.split(":");
+//                    String containerTableName = elements[0];
+//                    String containerColFamily = elements[1];
+//                    // String containerColQualifier = elements[2];
+//
+//                    System.out.print(container + ", ");
+//                }
+//                System.out.println();
 
             }
             br.close();
