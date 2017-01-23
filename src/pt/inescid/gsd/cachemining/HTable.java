@@ -61,7 +61,7 @@ public class HTable implements HTableInterface {
 
     private static Map<String, org.apache.hadoop.hbase.client.HTable> htables = new HashMap<String, org.apache.hadoop.hbase.client.HTable>();
 
-    private static Cache<Cell> cache = new Cache<>();
+    private static Cache<Cell> cache;
 
     private static SequenceEngine sequenceEngine;
 
@@ -101,19 +101,25 @@ public class HTable implements HTableInterface {
         isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
         isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
 
-        log.info("HTable (Enabled: " + isEnabled + ")");
+        log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
-        // TODO delete files if they exist
-        filePut = new File("put-operations.log");
-        fileGet = new File("get-operations.log");
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
 
-        // Would it make sense to run more than 1 thread?
-        prefetch.start();
+        if(isEnabled) {
+            if(isMonitoring) {
+                // TODO delete files if they exist
+                filePut = new File("put-operations.log");
+                fileGet = new File("get-operations.log");
+            }
 
-        // TODO create sequence engine without sequences
+            cache = new Cache<>(properties);
+            // Would it make sense to run more than 1 thread?
+            prefetch.start();
+
+            // TODO create sequence engine without sequences
+        }
     }
 
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
