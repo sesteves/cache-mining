@@ -259,6 +259,7 @@ public class HTable implements HTableInterface {
                 List<byte[]> qualifiersToRemove = new ArrayList<>();
                 for (byte[] qualifier : qualifiers) {
 
+                    // FIXME: avoid converting bytes to string
                     String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
                     CacheEntry<Cell> entry = cache.get(key);
                     if (entry != null) {
@@ -273,6 +274,7 @@ public class HTable implements HTableInterface {
                 }
 
             } else {
+                // FIXME: avoid converting bytes to string
                 String key = DataContainer.getKey(tableName, get.getRow(), family);
                 CacheEntry<Cell> entry = cache.get(key);
                 if (entry != null) {
@@ -369,7 +371,7 @@ public class HTable implements HTableInterface {
                 Iterator<DataContainer> itemsIt = sequenceEngine.getSequences(firstItem);
                 if (itemsIt == null) {
                     log.debug("There is no sequence indexed by key '" + firstItem + "'.");
-                    return;
+                    continue;
                 }
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
@@ -479,12 +481,13 @@ public class HTable implements HTableInterface {
         }
 
         // fetch items from cache
+        // TODO send rowStr so that it does not need to be converted again
         List<Cell> result = fetchFromCache(get);
 
 
+        // FIXME: if there is cache hit, then nothing is prefetched
         if(get.hasFamilies()) {
-            // prefetch sequences in the background
-
+            // prefetch sequences in the background asynchronously
             prefetchQueue.add(get);
             prefetchSemaphore.release();
 
@@ -495,11 +498,12 @@ public class HTable implements HTableInterface {
         }
 
         countGets++;
-        double cacheHitRate = (double) countCacheHits / (double) countGets;
+        double cacheHitRatio = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countEffectiveGets / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
-        log.debug("Total gets: " + countGets + ", Cache hit rate: " + cacheHitRate + ", Effective gets: " + effectiveGets
-                + ", Prefetch ratio: " + prefetchRatio);
+        // TODO this values should be written to CSV file
+        log.debug("Total gets: " + countGets + ", Cache hit ratio: " + cacheHitRatio + ", Effective gets: " +
+                effectiveGets + ", Prefetch ratio: " + prefetchRatio);
 
         return new Result().create(result);
     }

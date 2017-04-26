@@ -27,6 +27,9 @@ public class SequenceEngine {
 
 	private String sequencesFile;
 
+    /**
+     * Create a SequenceEngine with sequences read from a file.
+     */
     public SequenceEngine() {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
@@ -41,6 +44,11 @@ public class SequenceEngine {
         // loadSequences();
     }
 
+    /**
+     * Create a SequenceEngine with a given list of sequences.
+     *
+     * @param sequences the sequences to be used
+     */
     public SequenceEngine(List<List<DataContainer>> sequences) {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
@@ -126,9 +134,7 @@ public class SequenceEngine {
     }
 
     /**
-     * Currently searches in BFS way
-     *
-     * TODO: add dummy node to check for depth
+     * SequenceIterator - currently searches in BFS way
      */
     private class SequenceIterator implements Iterator<DataContainer> {
 
