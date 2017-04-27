@@ -126,7 +126,7 @@ public class SequenceEngine {
         if(root == null) {
             return null;
         }
-        return new SequenceIterator(sequences.get(key));
+        return new SequenceIterator(root);
     }
 
     public static void main(String[] args) {

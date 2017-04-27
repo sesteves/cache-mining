@@ -380,7 +380,7 @@ public class HTable implements HTableInterface {
                 while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
 
-                    // TODO fix following code
+                    // TODO make sure current item is not part of get request - sequencing engine does not return 1st item
                     // if either current item is part of the get request or item is in cache, skip it
 //                    if ((tableName.equals(item.getTableStr()) && get.getFamilyMap().containsKey(item.getFamily()) &&
 //                            get.getFamilyMap().get(item.getFamily()).contains(item.getQualifier())) ||
@@ -403,6 +403,8 @@ public class HTable implements HTableInterface {
                         g.addColumn(item.getFamily(), item.getQualifier());
                     }
                     tableGets.add(g);
+
+                    countPrefetch++;
                 }
 
                 // TODO this scheme disrupts the order by which items are retrieved from the iterator
