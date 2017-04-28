@@ -56,6 +56,12 @@ public class HTable implements HTableInterface {
     private final static String ENABLED_KEY = "enabled";
     private final static String MONITORING_DEFAULT = "false";
     private final static String ENABLED_DEFAULT = "false";
+    private final static String CACHE_SIZE_KEY = "cache-size";
+    private final static String CACHE_SIZE_DEFAULT = "1000";
+
+    private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
+
+    private static final String STATS_HEADER = "enabled,cachesize,ngets,hits,negets,npfetch";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -69,10 +75,14 @@ public class HTable implements HTableInterface {
     private File filePut, fileGet;
     private String tableName;
 
+    private static BufferedWriter statsF;
+
     private static int countGets = 0, countCacheHits = 0, countEffectiveGets = 0, countPrefetch = 0;
 
     private boolean isMonitoring;
     private boolean isEnabled;
+
+    private String statsPrefix;
 
     private boolean doPrefetch;
 
@@ -98,10 +108,15 @@ public class HTable implements HTableInterface {
         } catch (IOException e) {
             log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
         }
+        // HTable properties
         isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
         isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
 
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
+
+        // cache properties
+        int cacheSize = Integer.parseInt(properties.getProperty(CACHE_SIZE_KEY, CACHE_SIZE_DEFAULT));
+
 
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
@@ -114,12 +129,17 @@ public class HTable implements HTableInterface {
                 fileGet = new File("get-operations.log");
             }
 
-            cache = new Cache<>(properties);
+            cache = new Cache<>(cacheSize);
             // Would it make sense to run more than 1 thread?
             prefetch.start();
 
             // TODO create sequence engine without sequences
         }
+
+        statsF = new BufferedWriter(new FileWriter(statsFName));
+        statsF.write(STATS_HEADER);
+        statsF.newLine();
+        statsPrefix = isEnabled + "," + cacheSize + ",";
     }
 
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
@@ -189,8 +209,8 @@ public class HTable implements HTableInterface {
 
     @Override
     public void close() throws IOException {
+        statsF.close();
         htable.close();
-
     }
 
     @Override
@@ -503,9 +523,10 @@ public class HTable implements HTableInterface {
         double cacheHitRatio = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countEffectiveGets / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
-        // TODO this values should be written to CSV file
         log.debug("Total gets: " + countGets + ", Cache hit ratio: " + cacheHitRatio + ", Effective gets: " +
                 effectiveGets + ", Prefetch ratio: " + prefetchRatio);
+        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countEffectiveGets + "," + countPrefetch);
+        statsF.newLine();
 
         return new Result().create(result);
     }

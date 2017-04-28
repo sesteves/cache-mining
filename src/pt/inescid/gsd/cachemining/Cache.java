@@ -8,22 +8,19 @@ import java.util.Properties;
 
 public class Cache<T> {
 
-    private final static String CACHE_SIZE_KEY = "cache-size";
-    private final static String CACHE_SIZE_DEFAULT = "1000";
-
     private Logger log = Logger.getLogger(Cache.class);
 
     private Map<String, Node> cache;
 
-    private int maxSize;
+    private int size;
 
     Node head, tail;
 
-    public Cache(Properties properties) {
-        maxSize = Integer.parseInt(properties.getProperty(CACHE_SIZE_KEY, CACHE_SIZE_DEFAULT));
-        cache = new HashMap<>(maxSize);
+    public Cache(int size) {
+        this.size = size;
+        cache = new HashMap<>(size);
 
-        log.info("Cache (size: " + maxSize + ")");
+        log.info("Cache (size: " + size + ")");
     }
 
     public boolean contains(String key) {
@@ -65,7 +62,7 @@ public class Cache<T> {
         head = node;
 
         cache.put(key, node);
-        if(cache.size() > maxSize) {
+        if(cache.size() > size) {
             cache.remove(tail.key);
             tail = tail.previous;
             tail.next = null;
