@@ -49,15 +49,11 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class HTable implements HTableInterface {
-
     private final static String PROPERTIES_FILE = "cachemining.properties";
 
     private final static String MONITORING_KEY = "monitoring";
     private final static String ENABLED_KEY = "enabled";
-    private final static String MONITORING_DEFAULT = "false";
-    private final static String ENABLED_DEFAULT = "false";
     private final static String CACHE_SIZE_KEY = "cache-size";
-    private final static String CACHE_SIZE_DEFAULT = "1000";
 
     private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
 
@@ -84,8 +80,6 @@ public class HTable implements HTableInterface {
 
     private String statsPrefix;
 
-    private boolean doPrefetch;
-
     private Lock lockPrefetch = new ReentrantLock();
 
     private Queue<Get> prefetchQueue = new ConcurrentLinkedQueue<Get>();
@@ -109,14 +103,13 @@ public class HTable implements HTableInterface {
             log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
         }
         // HTable properties
-        isMonitoring = Boolean.parseBoolean(properties.getProperty(MONITORING_KEY, MONITORING_DEFAULT));
-        isEnabled = Boolean.parseBoolean(properties.getProperty(ENABLED_KEY, ENABLED_DEFAULT));
+        isMonitoring = Boolean.parseBoolean(System.getProperty(MONITORING_KEY, properties.getProperty(MONITORING_KEY)));
+        isEnabled = Boolean.parseBoolean(System.getProperty(ENABLED_KEY, properties.getProperty(ENABLED_KEY)));
 
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
         // cache properties
-        int cacheSize = Integer.parseInt(properties.getProperty(CACHE_SIZE_KEY, CACHE_SIZE_DEFAULT));
-
+        int cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
 
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
