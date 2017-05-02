@@ -211,6 +211,7 @@ public class HTable implements HTableInterface {
     public void close() throws IOException {
         statsF.close();
         htable.close();
+        prefetch.stop();
     }
 
     @Override
