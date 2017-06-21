@@ -504,6 +504,8 @@ public class HTable implements HTableInterface {
         // FIXME: if there is cache hit, then nothing is prefetched
         if(get.hasFamilies()) {
             // prefetch sequences in the background asynchronously
+
+
             prefetchQueue.add(get);
             prefetchSemaphore.release();
 

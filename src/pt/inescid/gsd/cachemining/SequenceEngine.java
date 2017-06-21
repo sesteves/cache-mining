@@ -2,6 +2,8 @@ package pt.inescid.gsd.cachemining;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import pt.inescid.gsd.cachemining.heuristics.FetchAll;
+import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -16,16 +18,30 @@ import java.util.Queue;
 
 public class SequenceEngine {
 
+    public enum HeuristicEnum {
+        FETCH_ALL("fetch-all");
+
+        private String s;
+
+        HeuristicEnum(String s) {
+            this.s = s;
+        }
+    }
+
 	private final static String PROPERTIES_FILE = "cachemining.properties";
 	
 	private final static String SEQUENCES_FILE_KEY = "sequencesFile";
 	private final static String SEQUENCES_FILE_DEFAULT = "sequences.txt";
+
+    private final static String HEURISTIC_KEY = "heuristic";
 
     private Logger log = Logger.getLogger(SequenceEngine.class);
 
     private Map<DataContainer, Node> sequences = new HashMap<>();
 
 	private String sequencesFile;
+
+    HeuristicEnum heuristic;
 
     /**
      * Create a SequenceEngine with sequences read from a file.
@@ -59,6 +75,8 @@ public class SequenceEngine {
             log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
         }
 
+        heuristic = HeuristicEnum.valueOf(properties.getProperty(HEURISTIC_KEY));
+
         // load sequences
         for(List<DataContainer> sequence : sequences) {
             Node parent = null;
@@ -82,9 +100,9 @@ public class SequenceEngine {
         // add special nodes at the end of each level
         for (Node root : this.sequences.values()) {
             Node node = root;
-            while(node.children != null) {
+            while(node.getChildren() != null) {
                 node.addChild(new Node(),1);
-                node = node.children.get(node.children.size() - 2);
+                node = node.getChildren().get(node.getChildren().size() - 2);
             }
         }
 
@@ -126,7 +144,12 @@ public class SequenceEngine {
         if(root == null) {
             return null;
         }
-        return new SequenceIterator(root);
+//        return new SequenceIterator(root);
+
+        switch(heuristic) {
+            case FETCH_ALL: return new FetchAll(root);
+            default: return null;
+        }
     }
 
     public static void main(String[] args) {
@@ -136,91 +159,70 @@ public class SequenceEngine {
     /**
      * SequenceIterator - currently searches in BFS way
      */
-    private class SequenceIterator implements Iterator<DataContainer> {
-
-        private static final int MAX_DEPTH = 100;
-
-        private Node parent;
-
-        private Node currentNode = null;
-
-        private int currentChild = 0;
-
-        private int currentDepth;
-
-        private Queue<Node> queue = new LinkedList<>();
-
-        public SequenceIterator(Node root) {
-            parent = root;
-            if(parent.children != null) {
-                currentNode = parent.children.get(currentChild);
-                queue.add(currentNode);
-                currentDepth = 1;
-            }
-        }
-
-        @Override
-        public boolean hasNext() {
-            return currentNode != null;
-        }
-
-        @Override
-        public DataContainer next() {
-            Node result = currentNode;
-
-            do {
-                if (parent.children.size() - 1 == currentChild) {
-                    if (!queue.isEmpty()) {
-                        parent = queue.poll();
-                        currentChild = 0;
-                        currentNode = parent.children.get(currentChild);
-                        if(currentNode.children != null) {
-                            queue.add(currentNode);
-                        }
-                    } else {
-                        currentNode = null;
-                        break;
-                    }
-                } else {
-                    currentNode = parent.children.get(++currentChild);
-                    if (currentNode.value == null) {
-                        currentDepth++;
-                    } else if (currentNode.children != null) {
-                        queue.add(currentNode);
-                    }
-                }
-            } while (currentNode.value == null);
-
-            return result.value;
-        }
-
-        @Override
-        public void remove() {
-            if(hasNext()) {
-                next();
-            }
-        }
-    }
-
-
-    private class Node {
-
-        private DataContainer value = null;
-
-        private List<Node> children;
-
-        public Node() {}
-
-        public Node(DataContainer value) {
-            this.value = value;
-        }
-
-        public void addChild(Node node, double probability) {
-            if(children == null) {
-                children = new ArrayList<>();
-            }
-            children.add(node);
-        }
-    }
+//    private class SequenceIterator implements Iterator<DataContainer> {
+//
+//        private static final int MAX_DEPTH = 100;
+//
+//        private Node parent;
+//
+//        private Node currentNode = null;
+//
+//        private int currentChild = 0;
+//
+//        private int currentDepth;
+//
+//        private Queue<Node> queue = new LinkedList<>();
+//
+//        public SequenceIterator(Node root) {
+//            parent = root;
+//            if(parent.children != null) {
+//                currentNode = parent.children.get(currentChild);
+//                queue.add(currentNode);
+//                currentDepth = 1;
+//            }
+//        }
+//
+//        @Override
+//        public boolean hasNext() {
+//            return currentNode != null;
+//        }
+//
+//        @Override
+//        public DataContainer next() {
+//            Node result = currentNode;
+//
+//            do {
+//                if (parent.children.size() - 1 == currentChild) {
+//                    if (!queue.isEmpty()) {
+//                        parent = queue.poll();
+//                        currentChild = 0;
+//                        currentNode = parent.children.get(currentChild);
+//                        if(currentNode.children != null) {
+//                            queue.add(currentNode);
+//                        }
+//                    } else {
+//                        currentNode = null;
+//                        break;
+//                    }
+//                } else {
+//                    currentNode = parent.children.get(++currentChild);
+//                    if (currentNode.value == null) {
+//                        currentDepth++;
+//                    } else if (currentNode.children != null) {
+//                        queue.add(currentNode);
+//                    }
+//                }
+//            } while (currentNode.value == null);
+//
+//            return result.value;
+//        }
+//
+//        @Override
+//        public void remove() {
+//            if(hasNext()) {
+//                next();
+//            }
+//        }
+//    }
 
 }
