@@ -30,15 +30,7 @@ public class Node {
         return value;
     }
 
-    public void setValue(DataContainer value) {
-        this.value = value;
-    }
-
     public List<Node> getChildren() {
         return children;
-    }
-
-    public void setChildren(List<Node> children) {
-        this.children = children;
     }
 }

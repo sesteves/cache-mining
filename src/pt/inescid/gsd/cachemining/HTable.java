@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -57,7 +58,7 @@ public class HTable implements HTableInterface {
 
     private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
 
-    private static final String STATS_HEADER = "enabled,cachesize,ngets,hits,negets,npfetch";
+    private static final String STATS_HEADER = "enabled,cachesize,ngets,hits,negets,npfetch,hitpfetch";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -73,7 +74,8 @@ public class HTable implements HTableInterface {
 
     private static BufferedWriter statsF;
 
-    private static int countGets = 0, countCacheHits = 0, countEffectiveGets = 0, countPrefetch = 0;
+    private static int countGets = 0, countCacheHits = 0, countEffectiveGets = 0, countPrefetch = 0,
+            countPrefetchHits = 0;
 
     private boolean isMonitoring;
     private boolean isEnabled;
@@ -92,6 +94,8 @@ public class HTable implements HTableInterface {
             prefetch();
         }
     });
+    private List<PrefetchingContext> activeContexts = new ArrayList<>();
+
 
     public HTable(Configuration conf, String tableName) throws IOException {
         PropertyConfigurator.configure("cachemining-log4j.properties");
@@ -272,9 +276,24 @@ public class HTable implements HTableInterface {
 
                 List<byte[]> qualifiersToRemove = new ArrayList<>();
                 for (byte[] qualifier : qualifiers) {
+                    // String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
 
-                    // FIXME: avoid converting bytes to string
-                    String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
+                    // CONTEXT
+                    DataContainer dc = new DataContainer(getTableName(), get.getRow(), family, qualifier);
+                    List<PrefetchingContext> toRemove = new ArrayList<>();
+                    for(PrefetchingContext context : activeContexts) {
+                        if(context.matches(dc)) {
+                            if(context.remove(dc)) {
+                                countPrefetchHits++;
+                            }
+                        } else {
+                            toRemove.add(context);
+                        }
+                    }
+                    activeContexts.removeAll(toRemove);
+                    String key = dc.toString();
+                    //
+
                     CacheEntry<Cell> entry = cache.get(key);
                     if (entry != null) {
                         countCacheHits++;
@@ -289,7 +308,24 @@ public class HTable implements HTableInterface {
 
             } else {
                 // FIXME: avoid converting bytes to string
-                String key = DataContainer.getKey(tableName, get.getRow(), family);
+                // String key = DataContainer.getKey(tableName, get.getRow(), family);
+
+                // CONTEXT
+                DataContainer dc = new DataContainer(getTableName(), get.getRow(), family);
+                List<PrefetchingContext> toRemove = new ArrayList<>();
+                for(PrefetchingContext context : activeContexts) {
+                    if(context.matches(dc)) {
+                        if(context.remove(dc)) {
+                            countPrefetchHits++;
+                        }
+                    } else {
+                        toRemove.add(context);
+                    }
+                }
+                activeContexts.removeAll(toRemove);
+                String key = dc.toString();
+                //
+
                 CacheEntry<Cell> entry = cache.get(key);
                 if (entry != null) {
                     countCacheHits++;
@@ -389,6 +425,9 @@ public class HTable implements HTableInterface {
                 }
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
+                // creates prefetching context
+                PrefetchingContext context = new PrefetchingContext();
+
                 // batch updates to the same tables
                 Map<String, List<Get>> gets = new HashMap<>();
                 while (itemsIt.hasNext()) {
@@ -419,10 +458,17 @@ public class HTable implements HTableInterface {
                     tableGets.add(g);
 
                     countPrefetch++;
+                    context.add(item);
+                }
+
+                // if elements were prefetched
+                if(context.getCount() > 0) {
+                    context.setContainersPerLevel(((Heuristic) itemsIt).getContainersPerLevel());
+                    activeContexts.add(context);
                 }
 
                 // TODO this scheme disrupts the order by which items are retrieved from the iterator
-                // pre-fetch elements to cache
+                // prefetch elements to cache
                 for (Map.Entry<String, List<Get>> entry : gets.entrySet()) {
                     String tableName = entry.getKey();
                     Result[] results = htables.get(tableName).get(entry.getValue());
@@ -504,13 +550,18 @@ public class HTable implements HTableInterface {
         // FIXME: if there is cache hit, then nothing is prefetched
         if(get.hasFamilies()) {
             // prefetch sequences in the background asynchronously
-
-
             prefetchQueue.add(get);
             prefetchSemaphore.release();
 
             countEffectiveGets++;
             Result partialResult = htable.get(get);
+            // add fetched result to cache
+            while(partialResult.advance()) {
+                Cell cell = partialResult.current();
+                String key = DataContainer.getKey(tableName, cell);
+                cache.put(key, new CacheEntry<>(cell));
+            }
+
             // TODO check if it is necessary to sort cells
             result.addAll(partialResult.listCells());
         }
@@ -521,7 +572,8 @@ public class HTable implements HTableInterface {
         double prefetchRatio = (double) countPrefetch / (double) countGets;
         log.debug("Total gets: " + countGets + ", Cache hit ratio: " + cacheHitRatio + ", Effective gets: " +
                 effectiveGets + ", Prefetch ratio: " + prefetchRatio);
-        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countEffectiveGets + "," + countPrefetch);
+        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countEffectiveGets + "," +
+                countPrefetch + "," + countPrefetchHits);
         statsF.newLine();
 
         return new Result().create(result);

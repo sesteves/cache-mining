@@ -3,8 +3,10 @@ package pt.inescid.gsd.cachemining.heuristics;
 import pt.inescid.gsd.cachemining.DataContainer;
 import pt.inescid.gsd.cachemining.Node;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Set;
 
 /**
  * Created by sesteves on 21-06-2017.
@@ -29,6 +31,11 @@ public class FetchAll extends Heuristic {
             currentNode = parent.getChildren().get(currentChild);
             queue.add(currentNode);
             currentDepth = 1;
+
+            // data containers per level
+            Set<DataContainer> set = new HashSet<>();
+            set.add(currentNode.getValue());
+            containersPerLevel.add(set);
         }
     }
 
@@ -42,6 +49,7 @@ public class FetchAll extends Heuristic {
         Node result = currentNode;
 
         do {
+            // if there are no more children to explore
             if (parent.getChildren().size() - 1 == currentChild) {
                 if (!queue.isEmpty()) {
                     parent = queue.poll();
@@ -49,6 +57,9 @@ public class FetchAll extends Heuristic {
                     currentNode = parent.getChildren().get(currentChild);
                     if(currentNode.getChildren() != null) {
                         queue.add(currentNode);
+
+                        // data containers per level
+                        containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                     }
                 } else {
                     currentNode = null;
@@ -58,8 +69,15 @@ public class FetchAll extends Heuristic {
                 currentNode = parent.getChildren().get(++currentChild);
                 if (currentNode.getValue() == null) {
                     currentDepth++;
+
+                    // data containers per level
+                    containersPerLevel.add(new HashSet<DataContainer>());
+
                 } else if (currentNode.getChildren() != null) {
                     queue.add(currentNode);
+
+                    // data containers per level
+                    containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                 }
             }
         } while (currentNode.getValue() == null);

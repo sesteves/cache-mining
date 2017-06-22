@@ -52,6 +52,19 @@ public class DataContainer {
         buildStringRepresentation();
     }
 
+    public DataContainer(byte[] table, byte[] row, byte[] family) {
+        this.table = table;
+        this.row = row;
+        this.family = family;
+
+        this.tableStr = Bytes.toString(table);
+        this.rowStr = Bytes.toString(row);
+        this.familyStr = Bytes.toString(family);
+
+        buildStringRepresentation();
+    }
+
+
     private void buildStringRepresentation() {
         StringBuilder sb = new StringBuilder(tableStr);
         if (rowStr != null) sb.append(SEPARATOR + rowStr);
