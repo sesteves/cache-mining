@@ -1,5 +1,8 @@
 package pt.inescid.gsd.cachemining;
 
+import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
+import pt.inescid.gsd.cachemining.heuristics.Heuristic;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -18,6 +21,14 @@ public class PrefetchingContext {
     private Set<DataContainer> prefetched = new HashSet<>();
 
     private List<Set<DataContainer>> containersPerLevel;
+
+    private Heuristic iterator;
+
+    public PrefetchingContext(Heuristic iterator) {
+        if(iterator instanceof FetchProgressively) {
+            this.iterator = iterator;
+        }
+    }
 
     public void add(DataContainer dc) {
         prefetched.add(dc);
@@ -47,5 +58,13 @@ public class PrefetchingContext {
 
     public int getCount() {
         return count;
+    }
+
+    public void setIterator(Heuristic iterator) {
+        this.iterator = iterator;
+    }
+
+    public Heuristic getIterator() {
+        return iterator;
     }
 }

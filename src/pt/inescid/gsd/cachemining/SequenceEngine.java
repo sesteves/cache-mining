@@ -3,6 +3,7 @@ package pt.inescid.gsd.cachemining;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import pt.inescid.gsd.cachemining.heuristics.FetchAll;
+import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
 import java.io.FileInputStream;
@@ -19,7 +20,7 @@ import java.util.Queue;
 public class SequenceEngine {
 
     public enum HeuristicEnum {
-        FETCH_ALL("fetch-all");
+        FETCH_ALL("fetch-all"), FETCH_PROGRESSIVELY("fetch-progressively");
 
         private String s;
 
@@ -139,7 +140,7 @@ public class SequenceEngine {
 //        }
 //    }
 
-    public Iterator<DataContainer> getSequences(DataContainer key) {
+    public Heuristic getSequences(DataContainer key) {
         Node root = sequences.get(key);
         if(root == null) {
             return null;
@@ -148,6 +149,7 @@ public class SequenceEngine {
 
         switch(heuristic) {
             case FETCH_ALL: return new FetchAll(root);
+            case FETCH_PROGRESSIVELY: return new FetchProgressively(root);
             default: return null;
         }
     }

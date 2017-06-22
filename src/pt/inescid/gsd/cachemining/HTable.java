@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.ipc.CoprocessorRpcChannel;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
 import java.io.BufferedWriter;
@@ -84,9 +85,13 @@ public class HTable implements HTableInterface {
 
     private Lock lockPrefetch = new ReentrantLock();
 
-    private Queue<Get> prefetchQueue = new ConcurrentLinkedQueue<Get>();
+    private Queue<Get> prefetchQueue = new ConcurrentLinkedQueue<>();
+
+    private Queue<PrefetchingContext> prefetchWithContextQueue = new ConcurrentLinkedQueue<>();
 
     private final Semaphore prefetchSemaphore = new Semaphore(0);
+
+    private final Semaphore prefetchWithContextSemaphore = new Semaphore(0);
 
     private Thread prefetch = new Thread(new Runnable() {
         @Override
@@ -94,6 +99,14 @@ public class HTable implements HTableInterface {
             prefetch();
         }
     });
+
+    private Thread prefetchWithContext = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            prefetchWithContext();
+        }
+    });
+
     private List<PrefetchingContext> activeContexts = new ArrayList<>();
 
 
@@ -265,7 +278,28 @@ public class HTable implements HTableInterface {
         return columns.substring(1);
     }
 
-    private List<Cell> fetchFromCache(Get get) {
+    private void prefetchWithContext() {
+
+        while(true) {
+
+            try {
+                prefetchWithContextSemaphore.acquire();
+                PrefetchingContext context = prefetchWithContextQueue.poll();
+
+
+                FetchProgressively iterator = context.getIterator;
+
+
+
+
+
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+                private List<Cell> fetchFromCache(Get get) {
         List<Cell> result = new ArrayList<>();
         List<byte[]> familiesToRemove = new ArrayList<>();
 
@@ -286,6 +320,7 @@ public class HTable implements HTableInterface {
                             if(context.remove(dc)) {
                                 countPrefetchHits++;
                             }
+
                         } else {
                             toRemove.add(context);
                         }
@@ -418,7 +453,7 @@ public class HTable implements HTableInterface {
                 System.out.println("First item: " + firstItem);
 
                 // get sequences matching firstItem
-                Iterator<DataContainer> itemsIt = sequenceEngine.getSequences(firstItem);
+                Heuristic itemsIt = sequenceEngine.getSequences(firstItem);
                 if (itemsIt == null) {
                     log.debug("There is no sequence indexed by key '" + firstItem + "'.");
                     continue;
@@ -426,7 +461,7 @@ public class HTable implements HTableInterface {
                 log.debug("There are sequences indexed by key '" + firstItem + "'.");
 
                 // creates prefetching context
-                PrefetchingContext context = new PrefetchingContext();
+                PrefetchingContext context = new PrefetchingContext(itemsIt);
 
                 // batch updates to the same tables
                 Map<String, List<Get>> gets = new HashMap<>();
