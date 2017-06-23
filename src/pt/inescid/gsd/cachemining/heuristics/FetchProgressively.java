@@ -63,28 +63,41 @@ public class FetchProgressively extends Heuristic {
             if (parent.getChildren().size() - 1 == currentChild) {
                 if (!queue.isEmpty()) {
 
+                    if (previousSet != null && previousSet.isEmpty()) {
+                        currentNode = null;
+                        currentDepth++;
+                        break;
+                    }
                     do {
                         // FIXME for first stage
                         parent = queue.poll();
-                    } while (parent != null && previousSet != null && !previousSet.remove(parent));
+                        if(parent != null)
+                        System.out.println("dc: " + parent.getValue());
+
+                    } while (parent != null && previousSet != null && !previousSet.remove(parent.getValue()));
                     if(parent == null) {
                         currentNode = null;
                         currentDepth++;
                         break;
                     }
 
+
                     set = new HashSet<>();
                     pairPath.put(parent.getValue(), set);
 
+
                     currentChild = 0;
                     currentNode = parent.getChildren().get(currentChild);
+
+                    set.add(currentNode.getValue());
+
+                    // data containers per level
+                    containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
+
                     if(currentNode.getChildren() != null) {
                         queue.add(currentNode);
-                        set.add(currentNode.getValue());
-
-                        // data containers per level
-                        containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                     }
+
                 } else {
                     currentNode = null;
                     break;
@@ -124,30 +137,42 @@ public class FetchProgressively extends Heuristic {
 
     public void unblock(DataContainer dc) {
         block = false;
+
+
+        for(Map.Entry<DataContainer, Set<DataContainer>> entry : pairPath.entrySet()) {
+            System.out.println("### " + entry.getKey().getTableStr() + ", " + entry.getValue().size());
+        }
+
         previousSet = pairPath.get(dc);
         pairPath.clear();
+        System.out.println("---> " + (previousSet == null));
+
+        for(DataContainer dcc : previousSet) {
+            System.out.println("dcc: " + dcc.getTableStr());
+        }
+        System.out.println(previousSet.contains(new DataContainer("e")));
 
         do {
             parent = queue.poll();
-        } while (parent != null && !previousSet.remove(parent));
+        } while (parent != null && !previousSet.remove(parent.getValue()));
         if (parent == null) {
+            System.out.println("Parent is null!");
             currentNode = null;
+            return;
         }
         currentChild = 0;
         currentNode = parent.getChildren().get(currentChild);
 
         set = new HashSet<>();
         pairPath.put(parent.getValue(), set);
+        set.add(currentNode.getValue());
 
         if(currentNode.getChildren() != null) {
             queue.add(currentNode);
-            containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
-            set.add(currentNode.getValue());
         }
 
-        // data containers per level
-        Set<DataContainer> set = new HashSet<>();
-        set.add(currentNode.getValue());
-        containersPerLevel.add(set);
+        Set<DataContainer> s = new HashSet<>();
+        s.add(currentNode.getValue());
+        containersPerLevel.add(s);
     }
 }
