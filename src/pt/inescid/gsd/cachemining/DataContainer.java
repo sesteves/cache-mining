@@ -38,6 +38,11 @@ public class DataContainer {
         buildStringRepresentation();
     }
 
+    // for testing purposes
+    public DataContainer(String value) {
+        this(value, value, value, value);
+    }
+
     public DataContainer(byte[] table, byte[] row, byte[] family, byte[] qualifier) {
         this.table = table;
         this.row = row;

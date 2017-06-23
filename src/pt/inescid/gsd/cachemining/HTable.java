@@ -279,27 +279,58 @@ public class HTable implements HTableInterface {
     }
 
     private void prefetchWithContext() {
-
-        while(true) {
+        while (true) {
 
             try {
                 prefetchWithContextSemaphore.acquire();
                 PrefetchingContext context = prefetchWithContextQueue.poll();
 
+                FetchProgressively iterator = (FetchProgressively) context.getIterator();
+                // FIXME
+                // FIXME
+                // FIXME
+                // iterator.unblock();
 
-                FetchProgressively iterator = context.getIterator;
+                List<Get> gets = new ArrayList<>();
+                while(iterator.hasNext()) {
+                    DataContainer dc = iterator.next();
 
+                    // if data container is already cached, skip it
+                    if(cache.contains(dc.toString())) {
+                        continue;
+                    }
 
+                    Get get = new Get(dc.getRow());
+                    if(dc.getQualifier() != null) {
+                        get.addColumn(dc.getFamily(), dc.getQualifier());
+                    } else {
+                        get.addFamily(dc.getFamily());
+                    }
+                    gets.add(get);
 
+                    context.add(dc);
+                    countPrefetch++;
+                }
 
-
+                // prefetching
+                Result[] results = htable.get(gets);
+                for (Result result : results) {
+                    while (result.advance()) {
+                        Cell cell = result.current();
+                        String key = DataContainer.getKey(tableName, cell);
+                        cache.put(key, new CacheEntry<>(cell));
+                    }
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+    }
 
-                private List<Cell> fetchFromCache(Get get) {
+
+
+    private List<Cell> fetchFromCache(Get get) {
         List<Cell> result = new ArrayList<>();
         List<byte[]> familiesToRemove = new ArrayList<>();
 
@@ -321,6 +352,11 @@ public class HTable implements HTableInterface {
                                 countPrefetchHits++;
                             }
 
+                            // if there is an iterator, it means that we are using progressive fetching
+                            if(context.getIterator() != null) {
+                                prefetchWithContextQueue.add(context);
+                                prefetchWithContextSemaphore.release();
+                            }
                         } else {
                             toRemove.add(context);
                         }
@@ -342,7 +378,6 @@ public class HTable implements HTableInterface {
                 }
 
             } else {
-                // FIXME: avoid converting bytes to string
                 // String key = DataContainer.getKey(tableName, get.getRow(), family);
 
                 // CONTEXT
@@ -352,6 +387,12 @@ public class HTable implements HTableInterface {
                     if(context.matches(dc)) {
                         if(context.remove(dc)) {
                             countPrefetchHits++;
+                        }
+
+                        // if there is an iterator, it means that we are using progressive fetching
+                        if(context.getIterator() != null) {
+                            prefetchWithContextQueue.add(context);
+                            prefetchWithContextSemaphore.release();
                         }
                     } else {
                         toRemove.add(context);
