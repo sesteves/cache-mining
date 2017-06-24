@@ -69,11 +69,7 @@ public class FetchProgressively extends Heuristic {
                         break;
                     }
                     do {
-                        // FIXME for first stage
                         parent = queue.poll();
-                        if(parent != null)
-                        System.out.println("dc: " + parent.getValue());
-
                     } while (parent != null && previousSet != null && !previousSet.remove(parent.getValue()));
                     if(parent == null) {
                         currentNode = null;
@@ -89,13 +85,13 @@ public class FetchProgressively extends Heuristic {
                     currentChild = 0;
                     currentNode = parent.getChildren().get(currentChild);
 
-                    set.add(currentNode.getValue());
 
                     // data containers per level
                     containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
 
                     if(currentNode.getChildren() != null) {
                         queue.add(currentNode);
+                        set.add(currentNode.getValue());
                     }
 
                 } else {
@@ -138,25 +134,13 @@ public class FetchProgressively extends Heuristic {
     public void unblock(DataContainer dc) {
         block = false;
 
-
-        for(Map.Entry<DataContainer, Set<DataContainer>> entry : pairPath.entrySet()) {
-            System.out.println("### " + entry.getKey().getTableStr() + ", " + entry.getValue().size());
-        }
-
         previousSet = pairPath.get(dc);
         pairPath.clear();
-        System.out.println("---> " + (previousSet == null));
-
-        for(DataContainer dcc : previousSet) {
-            System.out.println("dcc: " + dcc.getTableStr());
-        }
-        System.out.println(previousSet.contains(new DataContainer("e")));
 
         do {
             parent = queue.poll();
         } while (parent != null && !previousSet.remove(parent.getValue()));
         if (parent == null) {
-            System.out.println("Parent is null!");
             currentNode = null;
             return;
         }
@@ -165,14 +149,18 @@ public class FetchProgressively extends Heuristic {
 
         set = new HashSet<>();
         pairPath.put(parent.getValue(), set);
-        set.add(currentNode.getValue());
 
         if(currentNode.getChildren() != null) {
             queue.add(currentNode);
+            set.add(currentNode.getValue());
         }
 
         Set<DataContainer> s = new HashSet<>();
         s.add(currentNode.getValue());
         containersPerLevel.add(s);
+    }
+
+    public boolean hasNextStage(DataContainer dc) {
+        return pairPath.containsKey(dc) && pairPath.get(dc).size() > 0;
     }
 }

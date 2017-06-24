@@ -43,16 +43,27 @@ public class TestHeuristic {
             DataContainer dc = heuristic.next();
             System.out.println(dc.getTableStr());
         }
-        heuristic.unblock(new DataContainer("b"));
+        DataContainer dcc = new DataContainer("b");
+        System.out.println("**** " + heuristic.hasNextStage(dcc));
+        heuristic.unblock(dcc);
+
         while(heuristic.hasNext()) {
             DataContainer dc = heuristic.next();
             System.out.println(dc.getTableStr());
         }
-        heuristic.unblock(new DataContainer("e"));
+        dcc = new DataContainer("e");
+        System.out.println("**** " + heuristic.hasNextStage(dcc));
+        heuristic.unblock(dcc);
+
         while(heuristic.hasNext()) {
             DataContainer dc = heuristic.next();
             System.out.println(dc.getTableStr());
         }
 
+        dcc = new DataContainer("h");
+        System.out.println("**** " + heuristic.hasNextStage(dcc));
+
+        dcc = new DataContainer("k");
+        System.out.println("**** " + heuristic.hasNextStage(dcc));
     }
 }
