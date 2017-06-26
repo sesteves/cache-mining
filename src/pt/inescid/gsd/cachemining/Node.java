@@ -26,6 +26,15 @@ public class Node {
         children.add(node);
     }
 
+    public Node getChild(DataContainer value) {
+        for(Node child : children) {
+            if(child.value.equals(value)) {
+                return child;
+            }
+        }
+        return null;
+    }
+
     public DataContainer getValue() {
         return value;
     }

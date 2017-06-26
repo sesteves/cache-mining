@@ -92,8 +92,11 @@ public class SequenceEngine {
                         this.sequences.put(item, parent);
                     }
                 } else {
-                    Node node = new Node(item);
-                    parent.addChild(node, 1.0);
+                    Node node = parent.getChild(item);
+                    if (node == null) {
+                        node = new Node(item);
+                        parent.addChild(node, 1.0);
+                    }
                     parent = node;
                 }
             }
