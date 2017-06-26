@@ -21,12 +21,15 @@ import java.util.Queue;
 public class SequenceEngine {
 
     public enum HeuristicEnum {
-        FETCH_ALL("fetch-all"), FETCH_TOP_N("fetch-top-n"), FETCH_PROGRESSIVELY("fetch-progressively");
+        FETCH_ALL, FETCH_TOP_N, FETCH_PROGRESSIVELY;
 
-        private String s;
-
-        HeuristicEnum(String s) {
-            this.s = s;
+        public static HeuristicEnum getHeuristicEnum(String s) {
+            switch (s) {
+                case "fetch-all": return FETCH_ALL;
+                case "fetch-top-n": return FETCH_TOP_N;
+                case "fetch-progressively": return FETCH_PROGRESSIVELY;
+                default: return null;
+            }
         }
     }
 
@@ -77,7 +80,7 @@ public class SequenceEngine {
             log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
         }
 
-        heuristic = HeuristicEnum.valueOf(properties.getProperty(HEURISTIC_KEY));
+        heuristic = HeuristicEnum.getHeuristicEnum(properties.getProperty(HEURISTIC_KEY));
 
         // load sequences
         for(List<DataContainer> sequence : sequences) {
