@@ -11,7 +11,7 @@ import java.util.Set;
 /**
  * Created by Sergio on 24/06/2017.
  */
-public class TopN extends Heuristic {
+public class FetchTopN extends Heuristic {
 
     private static final int MAX_ITEMS = 5;
 
@@ -29,7 +29,7 @@ public class TopN extends Heuristic {
 
     private int countItems = 0;
 
-    public TopN(Node root) {
+    public FetchTopN(Node root) {
         parent = root;
         if(parent.getChildren() != null) {
             currentNode = parent.getChildren().get(currentChild);
