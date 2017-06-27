@@ -6,11 +6,14 @@ import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Created by Sergio on 21/06/2017.
  */
 public class PrefetchingContext {
+
+    private String id = UUID.randomUUID().toString();
 
     private int count = 0;
 
@@ -76,5 +79,21 @@ public class PrefetchingContext {
 
     public DataContainer getLastRequestedDc() {
         return lastRequestedDc;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PrefetchingContext that = (PrefetchingContext) o;
+
+        return id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
     }
 }
