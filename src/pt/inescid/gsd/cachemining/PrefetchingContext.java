@@ -24,6 +24,8 @@ public class PrefetchingContext {
 
     private Heuristic iterator;
 
+    private DataContainer lastRequestedDc;
+
     public PrefetchingContext(Heuristic iterator) {
         if(iterator instanceof FetchProgressively) {
             this.iterator = iterator;
@@ -66,5 +68,13 @@ public class PrefetchingContext {
 
     public Heuristic getIterator() {
         return iterator;
+    }
+
+    public void setLastRequestedDc(DataContainer lastRequestedDc) {
+        this.lastRequestedDc = lastRequestedDc;
+    }
+
+    public DataContainer getLastRequestedDc() {
+        return lastRequestedDc;
     }
 }

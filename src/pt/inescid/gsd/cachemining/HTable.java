@@ -286,10 +286,7 @@ public class HTable implements HTableInterface {
                 PrefetchingContext context = prefetchWithContextQueue.poll();
 
                 FetchProgressively iterator = (FetchProgressively) context.getIterator();
-                // FIXME
-                // FIXME
-                // FIXME
-                // iterator.unblock();
+                iterator.unblock(context.getLastRequestedDc());
 
                 List<Get> gets = new ArrayList<>();
                 while(iterator.hasNext()) {
@@ -354,6 +351,7 @@ public class HTable implements HTableInterface {
 
                             // if there is an iterator, it means that we are using progressive fetching
                             if(context.getIterator() != null) {
+                                context.setLastRequestedDc(dc);
                                 prefetchWithContextQueue.add(context);
                                 prefetchWithContextSemaphore.release();
                             }
@@ -646,8 +644,8 @@ public class HTable implements HTableInterface {
         double cacheHitRatio = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countEffectiveGets / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
-        log.debug("Total gets: " + countGets + ", Cache hit ratio: " + cacheHitRatio + ", Effective gets: " +
-                effectiveGets + ", Prefetch ratio: " + prefetchRatio);
+        log.debug("Total gets: " + countGets + ", cache hits: " + countCacheHits + ", fetches: " +
+                countEffectiveGets + ", prefetches: " + countPrefetch + ", prefetche hits: " + countPrefetchHits);
         statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countEffectiveGets + "," +
                 countPrefetch + "," + countPrefetchHits);
         statsF.newLine();

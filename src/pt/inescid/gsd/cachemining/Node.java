@@ -27,9 +27,11 @@ public class Node {
     }
 
     public Node getChild(DataContainer value) {
-        for(Node child : children) {
-            if(child.value.equals(value)) {
-                return child;
+        if(children != null) {
+            for (Node child : children) {
+                if (value.equals(child.value)) {
+                    return child;
+                }
             }
         }
         return null;
