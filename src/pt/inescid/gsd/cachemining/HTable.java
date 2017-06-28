@@ -110,6 +110,8 @@ public class HTable implements HTableInterface {
         }
     });
 
+    ExecutorService executorPrefetch, executorPrefetchWithContext;
+
     private List<PrefetchingContext> activeContexts = new ArrayList<>();
 
     private Object activeContextsLock = new Object();
@@ -145,8 +147,8 @@ public class HTable implements HTableInterface {
 
             cache = new Cache<>(cacheSize);
 
-            ExecutorService executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-            ExecutorService executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+            executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+            executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
             for(int i = 0; i < NUMBER_OF_THREADS; i++) {
                 executorPrefetch.execute(prefetch);
                 executorPrefetchWithContext.execute(prefetchWithContext);
@@ -231,7 +233,8 @@ public class HTable implements HTableInterface {
     public void close() throws IOException {
         statsF.close();
         htable.close();
-        prefetch.stop();
+        executorPrefetch.shutdownNow();
+        executorPrefetchWithContext.shutdownNow();
     }
 
     @Override
