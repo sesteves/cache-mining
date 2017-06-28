@@ -36,9 +36,7 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -49,8 +47,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class HTable implements HTableInterface {
 
@@ -292,28 +288,27 @@ public class HTable implements HTableInterface {
     }
 
     private void prefetchWithContext() {
-        while (true) {
-
-            try {
+        try {
+            while (true) {
                 prefetchWithContextSemaphore.acquire();
                 PrefetchingContext context = prefetchWithContextQueue.poll();
 
                 FetchProgressively iterator = (FetchProgressively) context.getIterator();
-                if(!iterator.unblock(context.getLastRequestedDc())){
+                if (!iterator.unblock(context.getLastRequestedDc())) {
                     continue;
                 }
 
                 List<Get> gets = new ArrayList<>();
-                while(iterator.hasNext()) {
+                while (iterator.hasNext()) {
                     DataContainer dc = iterator.next();
 
                     // if data container is already cached, skip it
-                    if(cache.contains(dc.toString())) {
+                    if (cache.contains(dc.toString())) {
                         continue;
                     }
 
                     Get get = new Get(dc.getRow());
-                    if(dc.getQualifier() != null) {
+                    if (dc.getQualifier() != null) {
                         get.addColumn(dc.getFamily(), dc.getQualifier());
                     } else {
                         get.addFamily(dc.getFamily());
@@ -336,11 +331,11 @@ public class HTable implements HTableInterface {
                         cache.put(key, new CacheEntry<>(cell));
                     }
                 }
-
-            } catch (Exception e) {
-                e.printStackTrace();
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+
     }
 
 
@@ -488,9 +483,9 @@ public class HTable implements HTableInterface {
 
     private void prefetch() {
 
-        while(true) {
+        try {
+            while (true) {
 
-            try {
                 prefetchSemaphore.acquire();
                 DataContainer dc = prefetchQueue.poll();
 
@@ -523,7 +518,7 @@ public class HTable implements HTableInterface {
 //                            cache.contains(item.toString())) {
 //                        continue;
 //                    }
-                    if(cache.contains(item.toString())) {
+                    if (cache.contains(item.toString())) {
                         continue;
                     }
 
@@ -533,7 +528,7 @@ public class HTable implements HTableInterface {
                         gets.put(item.getTableStr(), tableGets);
                     }
                     Get g = new Get(item.getRow());
-                    if(item.getQualifier() == null) {
+                    if (item.getQualifier() == null) {
                         g.addFamily(item.getFamily());
                     } else {
                         g.addColumn(item.getFamily(), item.getQualifier());
@@ -566,9 +561,9 @@ public class HTable implements HTableInterface {
                 long diff = System.currentTimeMillis() - startTick;
                 log.debug("Time taken with prefetching: " + diff);
 
-            } catch (Exception e) {
-                e.printStackTrace();
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
