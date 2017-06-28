@@ -229,8 +229,10 @@ public class HTable implements HTableInterface {
     public void close() throws IOException {
         statsF.close();
         htable.close();
-        executorPrefetch.shutdownNow();
-        executorPrefetchWithContext.shutdownNow();
+        if (isEnabled) {
+            executorPrefetch.shutdownNow();
+            executorPrefetchWithContext.shutdownNow();
+        }
     }
 
     @Override
