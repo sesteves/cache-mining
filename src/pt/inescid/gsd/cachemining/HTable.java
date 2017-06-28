@@ -332,7 +332,9 @@ public class HTable implements HTableInterface {
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (InterruptedException e) {
+            log.debug(e.getMessage());
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
@@ -562,7 +564,9 @@ public class HTable implements HTableInterface {
                 log.debug("Time taken with prefetching: " + diff);
 
             }
-        } catch (Exception e) {
+        } catch (InterruptedException e) {
+            log.error(e.getMessage());
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
