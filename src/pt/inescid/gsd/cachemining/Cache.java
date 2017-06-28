@@ -27,7 +27,7 @@ public class Cache<T> {
         return cache.containsKey(key);
     }
 
-    public CacheEntry<T> get(String key) {
+    public synchronized CacheEntry<T> get(String key) {
         Node node = cache.get(key);
         if (node == null) {
             return null;
@@ -50,7 +50,7 @@ public class Cache<T> {
         return node.entry;
     }
 
-    public void put(String key, CacheEntry<T> entry) {
+    public synchronized void put(String key, CacheEntry<T> entry) {
 
         Node node = new Node(key, entry);
         if (tail == null) {

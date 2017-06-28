@@ -75,7 +75,7 @@ public class HTable implements HTableInterface {
 
     private static BufferedWriter statsF;
 
-    private static int countGets = 0, countCacheHits = 0, countEffectiveGets = 0, countPrefetch = 0,
+    private static int countGets = 0, countCacheHits = 0, countFetch = 0, countPrefetch = 0,
             countPrefetchHits = 0;
 
     private boolean isMonitoring;
@@ -83,7 +83,7 @@ public class HTable implements HTableInterface {
 
     private String statsPrefix;
 
-    private Queue<Get> prefetchQueue = new ConcurrentLinkedQueue<>();
+    private Queue<DataContainer> prefetchQueue = new ConcurrentLinkedQueue<>();
 
     private Queue<PrefetchingContext> prefetchWithContextQueue = new ConcurrentLinkedQueue<>();
 
@@ -286,7 +286,9 @@ public class HTable implements HTableInterface {
                 PrefetchingContext context = prefetchWithContextQueue.poll();
 
                 FetchProgressively iterator = (FetchProgressively) context.getIterator();
-                iterator.unblock(context.getLastRequestedDc());
+                if(!iterator.unblock(context.getLastRequestedDc())){
+                    continue;
+                }
 
                 List<Get> gets = new ArrayList<>();
                 while(iterator.hasNext()) {
@@ -310,6 +312,9 @@ public class HTable implements HTableInterface {
                 }
 
                 // prefetching
+                // FIXME
+                // FIXME
+                // FIXME only considers one table
                 Result[] results = htable.get(gets);
                 for (Result result : results) {
                     while (result.advance()) {
@@ -326,195 +331,172 @@ public class HTable implements HTableInterface {
     }
 
 
-
-    private List<Cell> fetchFromCache(Get get) {
-        List<Cell> result = new ArrayList<>();
-        // List<byte[]> familiesToRemove = new ArrayList<>();
-
-        for(byte[] family : get.familySet()) {
-            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-
-            if(qualifiers != null) {
-
-                // List<byte[]> qualifiersToRemove = new ArrayList<>();
-                for (byte[] qualifier : qualifiers) {
-                    // String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
-
-
-                    // CONTEXT
-                    boolean prefetchHit = false;
-                    DataContainer dc = new DataContainer(getTableName(), get.getRow(), family, qualifier);
-                    List<PrefetchingContext> toRemove = new ArrayList<>();
-
-                    synchronized (activeContextsLock) {
-                        for (PrefetchingContext context : activeContexts) {
-                            if (context.matches(dc)) {
-                                if (context.remove(dc)) {
-                                    countPrefetchHits++;
-                                    prefetchHit = true;
-                                }
-
-                                // if there is an iterator, it means that we are using progressive fetching
-                                if (context.getIterator() != null) {
-                                    context.setLastRequestedDc(dc);
-                                    prefetchWithContextQueue.add(context);
-                                    prefetchWithContextSemaphore.release();
-                                }
-                            } else {
-                                toRemove.add(context);
-                            }
-                        }
-                        activeContexts.removeAll(toRemove);
-                    }
-                    String key = dc.toString();
-
-                    // if there is a prefetch hit, then wait until element is in cache
-                    CacheEntry<Cell> entry;
-                    do {
-                        entry = cache.get(key);
-                    } while(prefetchHit && entry == null);
-
-                    if (entry != null) {
-                        countCacheHits++;
-                        result.add(entry.getValue());
-//                        qualifiersToRemove.add(qualifier);
-                    }
-                }
-//                qualifiers.removeAll(qualifiersToRemove);
-//                if (qualifiers.size() == 0) {
-//                    familiesToRemove.add(family);
+//    private List<Cell> fetchFromCache(Get get) {
+//        List<Cell> result = new ArrayList<>();
+//        // List<byte[]> familiesToRemove = new ArrayList<>();
+//
+//        for(byte[] family : get.familySet()) {
+//            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
+//
+//            if(qualifiers != null) {
+//
+//                // List<byte[]> qualifiersToRemove = new ArrayList<>();
+//                for (byte[] qualifier : qualifiers) {
+//                    // String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
+//
+//
+//                    // CONTEXT
+//                    boolean prefetchHit = false;
+//                    DataContainer dc = new DataContainer(getTableName(), get.getRow(), family, qualifier);
+//                    List<PrefetchingContext> toRemove = new ArrayList<>();
+//
+//                    synchronized (activeContextsLock) {
+//                        for (PrefetchingContext context : activeContexts) {
+//                            if (context.matches(dc)) {
+//                                if (context.remove(dc)) {
+//                                    countPrefetchHits++;
+//                                    prefetchHit = true;
+//                                }
+//
+//                                // if there is an iterator, it means that we are using progressive fetching
+//                                if (context.getIterator() != null) {
+//                                    context.setLastRequestedDc(dc);
+//                                    prefetchWithContextQueue.add(context);
+//                                    prefetchWithContextSemaphore.release();
+//                                }
+//                            } else {
+//                                toRemove.add(context);
+//                            }
+//                        }
+//                        activeContexts.removeAll(toRemove);
+//                    }
+//                    String key = dc.toString();
+//
+//                    // if there is a prefetch hit, then wait until element is in cache
+//                    CacheEntry<Cell> entry;
+//                    do {
+//                        entry = cache.get(key);
+//                    } while(prefetchHit && entry == null);
+//
+//                    if (entry != null) {
+//                        countCacheHits++;
+//                        result.add(entry.getValue());
+////                        qualifiersToRemove.add(qualifier);
+//                    }
 //                }
+////                qualifiers.removeAll(qualifiersToRemove);
+////                if (qualifiers.size() == 0) {
+////                    familiesToRemove.add(family);
+////                }
+//
+//            } else {
+//                // String key = DataContainer.getKey(tableName, get.getRow(), family);
+//
+//                // CONTEXT
+//                DataContainer dc = new DataContainer(getTableName(), get.getRow(), family);
+//                List<PrefetchingContext> toRemove = new ArrayList<>();
+//                for(PrefetchingContext context : activeContexts) {
+//                    if(context.matches(dc)) {
+//                        if(context.remove(dc)) {
+//                            countPrefetchHits++;
+//                        }
+//
+//                        // if there is an iterator, it means that we are using progressive fetching
+//                        if(context.getIterator() != null) {
+//                            prefetchWithContextQueue.add(context);
+//                            prefetchWithContextSemaphore.release();
+//                        }
+//                    } else {
+//                        toRemove.add(context);
+//                    }
+//                }
+//                activeContexts.removeAll(toRemove);
+//                String key = dc.toString();
+//                //
+//
+//                CacheEntry<Cell> entry = cache.get(key);
+//                if (entry != null) {
+//                    countCacheHits++;
+//                    result.add(entry.getValue());
+//  //                  familiesToRemove.add(family);
+//                }
+//            }
+//        }
+//
+////        for (byte[] family : familiesToRemove) {
+////            get.getFamilyMap().remove(family);
+////        }
+//
+//        return result;
+//    }
 
-            } else {
-                // String key = DataContainer.getKey(tableName, get.getRow(), family);
+    private List<Cell> fetchFromCache(DataContainer dc) {
+        List<Cell> result = new ArrayList<>();
 
-                // CONTEXT
-                DataContainer dc = new DataContainer(getTableName(), get.getRow(), family);
-                List<PrefetchingContext> toRemove = new ArrayList<>();
-                for(PrefetchingContext context : activeContexts) {
-                    if(context.matches(dc)) {
-                        if(context.remove(dc)) {
-                            countPrefetchHits++;
-                        }
+        // CONTEXT
+        boolean prefetchHit = false;
+        List<PrefetchingContext> toRemove = new ArrayList<>();
 
-                        // if there is an iterator, it means that we are using progressive fetching
-                        if(context.getIterator() != null) {
-                            prefetchWithContextQueue.add(context);
-                            prefetchWithContextSemaphore.release();
-                        }
-                    } else {
-                        toRemove.add(context);
+        synchronized (activeContextsLock) {
+            for (PrefetchingContext context : activeContexts) {
+                if (context.matches(dc)) {
+                    if (context.remove(dc)) {
+                        countPrefetchHits++;
+                        prefetchHit = true;
                     }
-                }
-                activeContexts.removeAll(toRemove);
-                String key = dc.toString();
-                //
 
-                CacheEntry<Cell> entry = cache.get(key);
-                if (entry != null) {
-                    countCacheHits++;
-                    result.add(entry.getValue());
-  //                  familiesToRemove.add(family);
+                    // if there is an iterator, it means that we are using progressive fetching
+                    if (context.getIterator() != null) {
+                        context.setLastRequestedDc(dc);
+                        prefetchWithContextQueue.add(context);
+                        prefetchWithContextSemaphore.release();
+                    }
+                } else {
+                    toRemove.add(context);
                 }
             }
+            activeContexts.removeAll(toRemove);
         }
+        String key = dc.toString();
 
-//        for (byte[] family : familiesToRemove) {
-//            get.getFamilyMap().remove(family);
-//        }
+        // if there is a prefetch hit, then wait until element is in cache
+        CacheEntry<Cell> entry;
+        do {
+            entry = cache.get(key);
+        } while (prefetchHit && entry == null);
+        if (entry != null) {
+            countCacheHits++;
+            result.add(entry.getValue());
+        }
 
         return result;
     }
 
-//    private List<KeyValue> getItemsFromCache(Get get, String rowStr) {
-//        List<KeyValue> kvs = new ArrayList<>();
-//
-//        List<byte[]> familiesToRemove = new ArrayList<>();
-//        boolean firstItem = true;
-//        String key = null;
-//
-//        for (byte[] family : get.familySet()) {
-//            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-//            if (qualifiers != null) {
-//                List<byte[]> qualifiersToRemove = new ArrayList<byte[]>();
-//
-//                for (byte[] qualifier : qualifiers) {
-//                    key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family)
-//                            + SequenceEngine.SEPARATOR + Bytes.toString(qualifier);
-//
-//                    // System.out.println("Looking up in cache for key '" + key
-//                    // + "'");
-//                    CacheEntry<List<KeyValue>> entry = cache.get(key);
-//                    if (entry != null) {
-//                        countCacheHits++;
-//
-//                        if (firstItem)
-//                            doPrefetch = false;
-//
-//                        // System.out.println("Cache hit: " + countCacheHits);
-//                        kvs.addAll(entry.getValue());
-//                        qualifiersToRemove.add(qualifier);
-//                    }
-//                }
-//                qualifiers.removeAll(qualifiersToRemove);
-//                if (qualifiers.size() == 0)
-//                    familiesToRemove.add(family);
-//            } else {
-//                key = rowStr + SequenceEngine.SEPARATOR + tableName + SequenceEngine.SEPARATOR + Bytes.toString(family);
-//
-//                // System.out.println("Looking up in cache for key '" + key +
-//                // "'");
-//                CacheEntry<List<KeyValue>> entry = cache.get(key);
-//                if (entry != null) {
-//                    countCacheHits++;
-//
-//                    if (firstItem)
-//                        doPrefetch = false;
-//                    // System.out.println("Cache hit: " + countCacheHits);
-//                    kvs.addAll(entry.getValue());
-//                    familiesToRemove.add(family);
-//                }
-//            }
-//            firstItem = false;
-//        }
-//
-//        for (byte[] family : familiesToRemove)
-//            get.getFamilyMap().remove(family);
-//
-//        return kvs;
-//    }
 
     private void prefetch() {
-//        private void prefetch(Get get, String rowStr, String firstItem) throws IOException {
 
         while(true) {
 
             try {
                 prefetchSemaphore.acquire();
-                Get get = prefetchQueue.poll();
+                DataContainer dc = prefetchQueue.poll();
 
                 long startTick = System.currentTimeMillis();
 
-                Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
-                DataContainer firstItem = new DataContainer(getTableName(), get.getRow(), e.getKey(),
-                        e.getValue().iterator().next());
-
-                System.out.println("First item: " + firstItem);
-
                 // get sequences matching firstItem
-                Heuristic itemsIt = sequenceEngine.getSequences(firstItem);
+                Heuristic itemsIt = sequenceEngine.getSequences(dc);
                 if (itemsIt == null) {
-                    log.debug("There is no sequence indexed by key '" + firstItem + "'.");
+                    log.debug("There is no sequence indexed by key '" + dc + "'.");
                     continue;
                 }
-                log.debug("There are sequences indexed by key '" + firstItem + "'.");
+                log.debug("There are sequences indexed by key '" + dc + "'.");
 
                 // creates prefetching context
                 PrefetchingContext context = new PrefetchingContext(itemsIt);
                 synchronized (activeContextsLock) {
                     activeContexts.add(context);
                 }
-                context.setContainersPerLevel(((Heuristic) itemsIt).getContainersPerLevel());
+                context.setContainersPerLevel(itemsIt.getContainersPerLevel());
 
                 // batch updates to the same tables
                 Map<String, List<Get>> gets = new HashMap<>();
@@ -615,7 +597,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
-        log.info("get CALLED (" + tableName + ":" + Bytes.toString(get.getRow()) + ":"
+        log.debug("get CALLED (" + tableName + ":" + Bytes.toString(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
         if (!isEnabled) {
@@ -626,15 +608,18 @@ public class HTable implements HTableInterface {
             return htable.get(get);
         }
 
-        // prefetch sequences in the background asynchronously
-        prefetchQueue.add(get);
-        prefetchSemaphore.release();
+        Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
+        DataContainer dc = new DataContainer(getTableName(), get.getRow(), e.getKey(), e.getValue().iterator().next());
 
         // fetch items from cache
-        List<Cell> result = fetchFromCache(get);
+        List<Cell> result = fetchFromCache(dc);
 
         if(result.isEmpty()) {
-            countEffectiveGets++;
+            // prefetch sequences in the background asynchronously
+            prefetchQueue.add(dc);
+            prefetchSemaphore.release();
+
+            countFetch++;
             Result partialResult = htable.get(get);
             // add fetched result to cache
             while(partialResult.advance()) {
@@ -648,11 +633,11 @@ public class HTable implements HTableInterface {
 
         countGets++;
         double cacheHitRatio = (double) countCacheHits / (double) countGets;
-        double effectiveGets = (double) countEffectiveGets / (double) countGets;
+        double effectiveGets = (double) countFetch / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
         log.debug("Total gets: " + countGets + ", cache hits: " + countCacheHits + ", fetches: " +
-                countEffectiveGets + ", prefetches: " + countPrefetch + ", prefetch hits: " + countPrefetchHits);
-        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countEffectiveGets + "," +
+                countFetch+ ", prefetches: " + countPrefetch + ", prefetch hits: " + countPrefetchHits);
+        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countFetch+ "," +
                 countPrefetch + "," + countPrefetchHits);
         statsF.newLine();
 

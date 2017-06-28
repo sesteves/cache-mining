@@ -131,19 +131,23 @@ public class FetchProgressively extends Heuristic {
 
     }
 
-    public void unblock(DataContainer dc) {
-        block = false;
+    public boolean unblock(DataContainer dc) {
+        // wait until iterator is no longer in use
+        while(hasNext());
 
         previousSet = pairPath.get(dc);
+        if (previousSet == null) {
+           return false;
+        }
         pairPath.clear();
-
         do {
             parent = queue.poll();
         } while (parent != null && !previousSet.remove(parent.getValue()));
         if (parent == null) {
-            currentNode = null;
-            return;
+            return false;
         }
+        block = false;
+
         currentChild = 0;
         currentNode = parent.getChildren().get(currentChild);
 
@@ -158,6 +162,8 @@ public class FetchProgressively extends Heuristic {
         Set<DataContainer> s = new HashSet<>();
         s.add(currentNode.getValue());
         containersPerLevel.add(s);
+
+        return true;
     }
 
     public boolean hasNextStage(DataContainer dc) {

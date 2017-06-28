@@ -33,6 +33,7 @@ public class PrefetchingContext {
         if(iterator instanceof FetchProgressively) {
             this.iterator = iterator;
         }
+        // this.containersPerLevel = iterator.getContainersPerLevel();
     }
 
     public void add(DataContainer dc) {
