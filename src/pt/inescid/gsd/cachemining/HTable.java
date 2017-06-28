@@ -46,11 +46,16 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class HTable implements HTableInterface {
+
+    private final static int NUMBER_OF_THREADS = 4;
+
     private final static String PROPERTIES_FILE = "cachemining.properties";
 
     private final static String MONITORING_KEY = "monitoring";
@@ -139,9 +144,13 @@ public class HTable implements HTableInterface {
             }
 
             cache = new Cache<>(cacheSize);
-            // Would it make sense to run more than 1 thread?
-            prefetch.start();
-            prefetchWithContext.start();
+
+            ExecutorService executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+            ExecutorService executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+            for(int i = 0; i < NUMBER_OF_THREADS; i++) {
+                executorPrefetch.execute(prefetch);
+                executorPrefetchWithContext.execute(prefetchWithContext);
+            }
 
             // TODO create sequence engine without sequences
         }
@@ -150,6 +159,7 @@ public class HTable implements HTableInterface {
         statsF.write(STATS_HEADER);
         statsF.newLine();
         statsPrefix = isEnabled + "," + cacheSize + ",";
+
     }
 
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
