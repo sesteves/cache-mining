@@ -60,7 +60,7 @@ public class HTable implements HTableInterface {
 
     private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
 
-    private static final String STATS_HEADER = "enabled,cachesize,ngets,hits,negets,npfetch,hitpfetch";
+    private static final String STATS_HEADER = "cachesize,ngets,hits,negets,npfetch,hitpfetch";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -156,7 +156,7 @@ public class HTable implements HTableInterface {
         statsF = new BufferedWriter(new FileWriter(statsFName));
         statsF.write(STATS_HEADER);
         statsF.newLine();
-        statsPrefix = isEnabled + "," + cacheSize + ",";
+        statsPrefix = cacheSize + ",";
 
     }
 
