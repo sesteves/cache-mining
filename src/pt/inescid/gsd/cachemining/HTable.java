@@ -57,6 +57,7 @@ public class HTable implements HTableInterface {
     private final static String MONITORING_KEY = "monitoring";
     private final static String ENABLED_KEY = "enabled";
     private final static String CACHE_SIZE_KEY = "cache-size";
+    private final static String HEURISTIC_KEY = "heuristic";
 
     private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
 
@@ -163,7 +164,15 @@ public class HTable implements HTableInterface {
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
         this(conf, tableName);
         if (isEnabled) {
-            sequenceEngine = new SequenceEngine(sequences);
+            Properties properties = new Properties();
+            try {
+                properties.load(new FileInputStream(PROPERTIES_FILE));
+            } catch (IOException e) {
+                log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
+            }
+
+            String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
+            sequenceEngine = new SequenceEngine(sequences, heuristic);
         }
     }
 
