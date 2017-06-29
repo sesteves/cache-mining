@@ -33,7 +33,7 @@ public class PrefetchingContext {
         if(iterator instanceof FetchProgressively) {
             this.iterator = iterator;
         }
-        // this.containersPerLevel = iterator.getContainersPerLevel();
+        this.containersPerLevel = iterator.getContainersPerLevel();
     }
 
     public void add(DataContainer dc) {
@@ -64,10 +64,6 @@ public class PrefetchingContext {
 
     public int getCount() {
         return count;
-    }
-
-    public void setIterator(Heuristic iterator) {
-        this.iterator = iterator;
     }
 
     public Heuristic getIterator() {

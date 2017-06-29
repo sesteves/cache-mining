@@ -322,8 +322,6 @@ public class HTable implements HTableInterface {
                 }
 
                 // prefetching
-                // FIXME
-                // FIXME
                 // FIXME only considers one table
                 Result[] results = htable.get(gets);
                 for (Result result : results) {
@@ -508,7 +506,7 @@ public class HTable implements HTableInterface {
                 synchronized (activeContextsLock) {
                     activeContexts.add(context);
                 }
-                context.setContainersPerLevel(itemsIt.getContainersPerLevel());
+                // context.setContainersPerLevel(itemsIt.getContainersPerLevel());
 
                 // batch updates to the same tables
                 Map<String, List<Get>> gets = new HashMap<>();

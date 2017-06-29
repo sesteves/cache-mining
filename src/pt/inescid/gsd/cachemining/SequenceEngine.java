@@ -80,7 +80,8 @@ public class SequenceEngine {
             log.info("Not possible to load properties file '" + PROPERTIES_FILE + "'.");
         }
 
-        heuristic = HeuristicEnum.getHeuristicEnum(properties.getProperty(HEURISTIC_KEY));
+        String heuristicStr = properties.getProperty(HEURISTIC_KEY);
+        heuristic = HeuristicEnum.getHeuristicEnum(heuristicStr);
 
         // load sequences
         for(List<DataContainer> sequence : sequences) {
@@ -114,7 +115,7 @@ public class SequenceEngine {
             }
         }
 
-        log.info("Loaded " + sequences.size() + " sequences");
+        log.info("Loaded " + sequences.size() + " sequences. Heuristic in use: " + heuristicStr);
     }
 
 //    private void loadSequences() {
