@@ -162,7 +162,9 @@ public class HTable implements HTableInterface {
 
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
         this(conf, tableName);
-        sequenceEngine = new SequenceEngine(sequences);
+        if (isEnabled) {
+            sequenceEngine = new SequenceEngine(sequences);
+        }
     }
 
     public void markTransaction() throws IOException {
