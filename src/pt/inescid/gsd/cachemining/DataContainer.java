@@ -101,10 +101,6 @@ public class DataContainer {
                 Bytes.toString(qualifier);
     }
 
-    public String getTableStr() {
-        return tableStr;
-    }
-
     public byte[] getTable() {
         return table;
     }
@@ -121,6 +117,21 @@ public class DataContainer {
         return qualifier;
     }
 
+    public String getTableStr() {
+        return tableStr;
+    }
+
+    public String getRowStr() {
+        return rowStr;
+    }
+
+    public String getFamilyStr() {
+        return familyStr;
+    }
+
+    public String getQualifierStr() {
+        return qualifierStr;
+    }
 
     @Override
     public String toString() {
