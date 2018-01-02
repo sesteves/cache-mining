@@ -72,7 +72,9 @@ public class HTable implements HTableInterface {
     private static SequenceEngine sequenceEngine;
 
     private org.apache.hadoop.hbase.client.HTable htable;
-    private File filePut, fileGet;
+
+    private static File filePut, fileGet;
+
     private String tableName;
 
     private static BufferedWriter statsF;
