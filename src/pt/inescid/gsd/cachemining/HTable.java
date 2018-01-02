@@ -139,7 +139,7 @@ public class HTable implements HTableInterface {
             if(isMonitoring) {
                 // TODO delete files if they exist
                 filePut = new File("put-operations.log");
-                fileGet = new File("get-operations.log");
+                fileGet = new File(String.format("get-ops-%d.txt", System.currentTimeMillis()));
             }
 
             cache = new Cache<>(cacheSize);
@@ -597,11 +597,12 @@ public class HTable implements HTableInterface {
     }
 
 
-    private void monitorGet(Get get, String rowStr) throws IOException {
+    private void monitorGet(Get get) throws IOException {
         FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
         BufferedWriter bw = new BufferedWriter(fw);
 
         long ts = System.currentTimeMillis();
+        String rowStr = bytesToStr(get.getRow());
         Set<byte[]> families = get.familySet();
         for (byte[] f : families) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
@@ -627,7 +628,7 @@ public class HTable implements HTableInterface {
             return htable.get(get);
         }
         if (isMonitoring) {
-            monitorGet(get, bytesToStr(get.getRow()));
+            monitorGet(get);
             return htable.get(get);
         }
 
