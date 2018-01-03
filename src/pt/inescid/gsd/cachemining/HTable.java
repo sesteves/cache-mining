@@ -695,6 +695,7 @@ public class HTable implements HTableInterface {
 
         // unfold scan into multiple gets
         ResultScanner results = htable.getScanner(scan);
+
         for(Result result : results) {
             byte[] row = result.getRow();
 
