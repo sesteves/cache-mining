@@ -604,7 +604,7 @@ public class HTable implements HTableInterface {
         BufferedWriter bw = new BufferedWriter(fw);
 
         long ts = System.currentTimeMillis();
-        String rowStr = bytesToStr(get.getRow());
+        String rowStr = "" + Bytes.toInt(get.getRow());
         Set<byte[]> families = get.familySet();
         for (byte[] f : families) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
@@ -716,7 +716,7 @@ public class HTable implements HTableInterface {
             }
         }
 
-        return results;
+        return htable.getScanner(scan);
     }
 
     @Override
