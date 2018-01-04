@@ -31,7 +31,6 @@ import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -74,7 +73,7 @@ public class HTable implements HTableInterface {
 
     private org.apache.hadoop.hbase.client.HTable htable;
 
-    private static File filePut, fileGet;
+    private static BufferedWriter getOpsF, putOpsF;
 
     private String tableName;
 
@@ -158,9 +157,11 @@ public class HTable implements HTableInterface {
 
         if(isEnabled) {
             if(isMonitoring) {
-                // TODO delete files if they exist
-                filePut = new File("put-operations.log");
-                fileGet = new File(String.format("get-ops-%d.txt", System.currentTimeMillis()));
+                long ts = System.currentTimeMillis();
+                FileWriter putFW = new FileWriter(String.format("put-ops-%d.txt", ts));
+                putOpsF = new BufferedWriter(putFW);
+                FileWriter getFW = new FileWriter(String.format("get-ops-%d.txt", ts));
+                getOpsF = new BufferedWriter(getFW);
             }
 
             cache = new Cache<>(cacheSize);
@@ -172,13 +173,11 @@ public class HTable implements HTableInterface {
                 executorPrefetchWithContext.execute(prefetchWithContext);
             }
 
-            // TODO create sequence engine without sequences
+            statsF = new BufferedWriter(new FileWriter(statsFName));
+            statsF.write(STATS_HEADER);
+            statsF.newLine();
+            statsPrefix = cacheSize + ",";
         }
-
-        statsF = new BufferedWriter(new FileWriter(statsFName));
-        statsF.write(STATS_HEADER);
-        statsF.newLine();
-        statsPrefix = cacheSize + ",";
 
         return properties;
     }
@@ -187,11 +186,8 @@ public class HTable implements HTableInterface {
         if (!(isEnabled && isMonitoring))
             return;
 
-        FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
-        BufferedWriter bw = new BufferedWriter(fw);
-        bw.write("### TRANSACTION " + System.currentTimeMillis());
-        bw.newLine();
-        bw.close();
+        getOpsF.write("### TRANSACTION " + System.currentTimeMillis());
+        getOpsF.newLine();
     }
 
     public void setScannerCaching(int scannerCaching) {
@@ -245,9 +241,13 @@ public class HTable implements HTableInterface {
 
     @Override
     public void close() throws IOException {
-        statsF.close();
         htable.close();
         if (isEnabled) {
+            if(isMonitoring) {
+                putOpsF.close();
+                getOpsF.close();
+            }
+            statsF.close();
             executorPrefetch.shutdownNow();
             executorPrefetchWithContext.shutdownNow();
         }
@@ -487,7 +487,7 @@ public class HTable implements HTableInterface {
         }
         String key = dc.toString();
 
-        // if there is a prefetch hit, then wait until element is in cache
+        // if there is a prefetch hit, then actively wait until element is in cache
         CacheEntry<Cell> entry;
         do {
             entry = cache.get(key);
@@ -605,9 +605,6 @@ public class HTable implements HTableInterface {
 
 
     private void monitorGet(Get get) throws IOException {
-        FileWriter fw = new FileWriter(fileGet.getAbsoluteFile(), true);
-        BufferedWriter bw = new BufferedWriter(fw);
-
         long ts = System.currentTimeMillis();
         String rowStr = "" + Bytes.toInt(get.getRow());
         Set<byte[]> families = get.familySet();
@@ -615,15 +612,14 @@ public class HTable implements HTableInterface {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
             if (qualifiers != null) {
                 for (byte[] q : qualifiers) {
-                    bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
-                    bw.newLine();
+                    getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
+                    getOpsF.newLine();
                 }
             } else {
-                bw.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
-                bw.newLine();
+                getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
+                getOpsF.newLine();
             }
         }
-        bw.close();
     }
 
     @Override
@@ -640,7 +636,12 @@ public class HTable implements HTableInterface {
         }
 
         Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
-        DataContainer dc = new DataContainer(getTableName(), get.getRow(), e.getKey(), e.getValue().iterator().next());
+        DataContainer dc;
+        if(e.getValue().size() > 0) {
+            dc = new DataContainer(getTableName(), get.getRow(), e.getKey(), e.getValue().iterator().next());
+        } else {
+            dc = new DataContainer(getTableName(), get.getRow(), e.getKey());
+        }
 
         // fetch items from cache
         List<Cell> result = fetchFromCache(dc);
@@ -794,19 +795,16 @@ public class HTable implements HTableInterface {
     public void put(Put put) throws IOException {
         htable.put(put);
         if (isMonitoring) {
-            FileWriter fw = new FileWriter(filePut.getAbsoluteFile(), true);
-            BufferedWriter bw = new BufferedWriter(fw);
             long ts = System.currentTimeMillis();
             Set<byte[]> families = put.getFamilyMap().keySet();
             for (byte[] f : families) {
                 List<KeyValue> qualifiers = put.getFamilyMap().get(f);
                 for (KeyValue q : qualifiers) {
-                    bw.write(ts + ":" + tableName + ":" + Bytes.toInt(put.getRow()) + ":" + Bytes.toString(f) + ":"
+                    putOpsF.write(ts + ":" + tableName + ":" + Bytes.toInt(put.getRow()) + ":" + Bytes.toString(f) + ":"
                             + Bytes.toString(q.getQualifier()));
-                    bw.newLine();
+                    putOpsF.newLine();
                 }
             }
-            bw.close();
         }
     }
 
