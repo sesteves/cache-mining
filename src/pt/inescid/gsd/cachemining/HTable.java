@@ -637,7 +637,7 @@ public class HTable implements HTableInterface {
 
         Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
         DataContainer dc;
-        if(e.getValue().size() > 0) {
+        if(e.getValue() != null) {
             dc = new DataContainer(getTableName(), get.getRow(), e.getKey(), e.getValue().iterator().next());
         } else {
             dc = new DataContainer(getTableName(), get.getRow(), e.getKey());
