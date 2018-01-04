@@ -38,6 +38,18 @@ public class DataContainer {
         buildStringRepresentation();
     }
 
+    public DataContainer(String table, String row, String family) {
+        this.tableStr = table;
+        this.rowStr = row;
+        this.familyStr = family;
+
+        this.table = Bytes.toBytes(table);
+        this.row = Bytes.toBytes(row);
+        this.family = Bytes.toBytes(family);
+
+        buildStringRepresentation();
+    }
+
     // for testing purposes
     public DataContainer(String value) {
         this(value, value, value, value);

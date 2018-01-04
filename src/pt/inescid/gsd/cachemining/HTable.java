@@ -58,6 +58,7 @@ public class HTable implements HTableInterface {
     private final static String ENABLED_KEY = "enabled";
     private final static String CACHE_SIZE_KEY = "cache-size";
     private final static String HEURISTIC_KEY = "heuristic";
+    private final static String SEQUENCES_FILE_KEY = "sequences-file";
 
     private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
 
@@ -116,6 +117,23 @@ public class HTable implements HTableInterface {
     private Object activeContextsLock = new Object();
 
     public HTable(Configuration conf, String tableName) throws IOException {
+        Properties properties = init(conf, tableName);
+        if(isEnabled) {
+            String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
+            String sequencesFName = System.getProperty(SEQUENCES_FILE_KEY, properties.getProperty(SEQUENCES_FILE_KEY));
+            sequenceEngine = new SequenceEngine(heuristic, sequencesFName);
+        }
+    }
+
+    public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
+        Properties properties = init(conf, tableName);
+        if (isEnabled) {
+            String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
+            sequenceEngine = new SequenceEngine(heuristic, sequences);
+        }
+    }
+
+    public Properties init(Configuration conf, String tableName) throws IOException {
         PropertyConfigurator.configure("cachemining-log4j.properties");
 
         Properties properties = new Properties();
@@ -124,6 +142,7 @@ public class HTable implements HTableInterface {
         } catch (IOException e) {
             log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
         }
+
         // HTable properties
         isMonitoring = Boolean.parseBoolean(System.getProperty(MONITORING_KEY, properties.getProperty(MONITORING_KEY)));
         isEnabled = Boolean.parseBoolean(System.getProperty(ENABLED_KEY, properties.getProperty(ENABLED_KEY)));
@@ -161,21 +180,7 @@ public class HTable implements HTableInterface {
         statsF.newLine();
         statsPrefix = cacheSize + ",";
 
-    }
-
-    public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
-        this(conf, tableName);
-        if (isEnabled) {
-            Properties properties = new Properties();
-            try {
-                properties.load(new FileInputStream(PROPERTIES_FILE));
-            } catch (IOException e) {
-                log.info("Could not load properties file '" + PROPERTIES_FILE + "'.");
-            }
-
-            String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
-            sequenceEngine = new SequenceEngine(sequences, heuristic);
-        }
+        return properties;
     }
 
     public void markTransaction() throws IOException {
