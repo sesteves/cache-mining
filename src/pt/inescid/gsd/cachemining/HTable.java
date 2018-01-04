@@ -35,6 +35,7 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -627,6 +628,36 @@ public class HTable implements HTableInterface {
         log.debug("get CALLED (" + tableName + ":" + Bytes.toString(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
+        // FIXME do not unfold gets
+        // unfolding get in case there is more than one family or qualifier
+        Set<Map.Entry<byte[], NavigableSet<byte[]>>> entries = get.getFamilyMap().entrySet();
+        Map.Entry<byte[], NavigableSet<byte[]>> first = entries.iterator().next();
+
+        if(get.numFamilies() > 1 || (first.getValue() != null && first.getValue().size() > 1)) {
+            List<Cell> cells = new ArrayList<>();
+            for (Map.Entry<byte[], NavigableSet<byte[]>> entry : entries) {
+
+                if (entry.getValue() == null) {
+                    Get g = new Get(get.getRow());
+                    g.addFamily(entry.getKey());
+
+                    Result r = get(g);
+                    cells.addAll(r.listCells());
+                } else {
+                    for (byte[] qualifier : entry.getValue()) {
+                        Get g = new Get(get.getRow());
+                        g.addColumn(entry.getKey(), qualifier);
+
+                        Result r = get(g);
+                        cells.addAll(r.listCells());
+                    }
+                }
+            }
+
+            return new Result().create(cells);
+        }
+
+
         if (!isEnabled) {
             return htable.get(get);
         }
@@ -635,12 +666,11 @@ public class HTable implements HTableInterface {
             return htable.get(get);
         }
 
-        Map.Entry<byte[], NavigableSet<byte[]>> e = get.getFamilyMap().entrySet().iterator().next();
         DataContainer dc;
-        if(e.getValue() != null) {
-            dc = new DataContainer(getTableName(), get.getRow(), e.getKey(), e.getValue().iterator().next());
+        if(first.getValue() != null) {
+            dc = new DataContainer(getTableName(), get.getRow(), first.getKey(), first.getValue().iterator().next());
         } else {
-            dc = new DataContainer(getTableName(), get.getRow(), e.getKey());
+            dc = new DataContainer(getTableName(), get.getRow(), first.getKey());
         }
 
         // fetch items from cache
