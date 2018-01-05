@@ -32,7 +32,7 @@ public class DataContainer {
 
         this.table = Bytes.toBytes(table);
         // FIXME
-        this.row = Bytes.toBytes(Integer.parseInt(row));
+        this.row = Bytes.fromHex(row);
         this.family = Bytes.toBytes(family);
         this.qualifier = Bytes.toBytes(qualifier);
 
@@ -46,7 +46,7 @@ public class DataContainer {
 
         this.table = Bytes.toBytes(table);
         // FIXME
-        this.row = Bytes.toBytes(Integer.parseInt(row));
+        this.row = Bytes.fromHex(row);
         this.family = Bytes.toBytes(family);
 
         buildStringRepresentation();
@@ -65,7 +65,7 @@ public class DataContainer {
 
         this.tableStr = Bytes.toString(table);
         // FIXME
-        this.rowStr = "" + Bytes.toInt(row);
+        this.rowStr = "" + Bytes.toHex(row);
         this.familyStr = Bytes.toString(family);
         this.qualifierStr = Bytes.toString(qualifier);
 
@@ -79,7 +79,7 @@ public class DataContainer {
 
         this.tableStr = Bytes.toString(table);
         // FIXME
-        this.rowStr = "" + Bytes.toInt(row);
+        this.rowStr = "" + Bytes.toHex(row);
         this.familyStr = Bytes.toString(family);
 
         buildStringRepresentation();
@@ -97,7 +97,7 @@ public class DataContainer {
 
     // TODO change deprecated methods
     public static String getKey(String tableName, Cell cell) {
-        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toInt(cell.getRow()) + SEPARATOR +
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
 
         if (cell.getQualifierArray() != null) {
@@ -107,17 +107,17 @@ public class DataContainer {
     }
 
     public static String getKeyWithoutQualifier(String tableName, Cell cell) {
-        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toInt(cell.getRow()) + SEPARATOR +
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
         return sb.toString();
     }
 
     public static String getKey(String tableName, byte[] row, byte[] family) {
-        return tableName + SEPARATOR + Bytes.toInt(row) + SEPARATOR + Bytes.toString(family);
+        return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family);
     }
 
     public static String getKey(String tableName, byte[] row, byte[] family, byte[] qualifier) {
-        return tableName + SEPARATOR + Bytes.toInt(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
+        return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
                 Bytes.toString(qualifier);
     }
 

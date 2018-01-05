@@ -576,7 +576,6 @@ public class HTable implements HTableInterface {
                     Result[] results = htables.get(tableName).get(entry.getValue());
 
                     for (Result result : results) {
-                        result.
                         while (result.advance()) {
                             Cell cell = result.current();
                             String key = hasQualifier ? DataContainer.getKey(entry.getKey(), cell) :
@@ -615,7 +614,7 @@ public class HTable implements HTableInterface {
 
     private void monitorGet(Get get) throws IOException {
         long ts = System.currentTimeMillis();
-        String rowStr = "" + Bytes.toInt(get.getRow());
+        String rowStr = "" + Bytes.toHex(get.getRow());
         Set<byte[]> families = get.familySet();
         for (byte[] f : families) {
             NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
@@ -633,7 +632,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
-        log.debug("get CALLED (" + tableName + ":" + Bytes.toInt(get.getRow()) + ":"
+        log.debug("get CALLED (" + tableName + ":" + Bytes.toHex(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
         // FIXME do not unfold gets
@@ -833,18 +832,18 @@ public class HTable implements HTableInterface {
     @Override
     public void put(Put put) throws IOException {
         htable.put(put);
-        if (isMonitoring) {
-            long ts = System.currentTimeMillis();
-            Set<byte[]> families = put.getFamilyMap().keySet();
-            for (byte[] f : families) {
-                List<KeyValue> qualifiers = put.getFamilyMap().get(f);
-                for (KeyValue q : qualifiers) {
-                    putOpsF.write(ts + ":" + tableName + ":" + Bytes.toInt(put.getRow()) + ":" + Bytes.toString(f) + ":"
-                            + Bytes.toString(q.getQualifier()));
-                    putOpsF.newLine();
-                }
-            }
-        }
+//        if (isMonitoring) {
+//            long ts = System.currentTimeMillis();
+//            Set<byte[]> families = put.getFamilyMap().keySet();
+//            for (byte[] f : families) {
+//                List<KeyValue> qualifiers = put.getFamilyMap().get(f);
+//                for (KeyValue q : qualifiers) {
+//                    putOpsF.write(ts + ":" + tableName + ":" + Bytes.toHex(put.getRow()) + ":" + Bytes.toString(f)
+//                            + ":" + Bytes.toString(q.getQualifier()));
+//                    putOpsF.newLine();
+//                }
+//            }
+//        }
     }
 
     @Override
