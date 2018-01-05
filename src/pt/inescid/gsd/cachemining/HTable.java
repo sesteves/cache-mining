@@ -59,7 +59,9 @@ public class HTable implements HTableInterface {
     private final static String HEURISTIC_KEY = "heuristic";
     private final static String SEQUENCES_FILE_KEY = "sequences-file";
 
-    private static final String statsFName = String.format("stats-cache-%d.csv", System.currentTimeMillis());
+    private static long ts = System.currentTimeMillis();
+
+    private static final String statsFName = String.format("stats-cache-%d.csv", ts);
 
     private static final String STATS_HEADER = "cachesize,ngets,hits,negets,npfetch,hitpfetch";
 
@@ -157,7 +159,6 @@ public class HTable implements HTableInterface {
 
         if(isEnabled) {
             if(isMonitoring) {
-                long ts = System.currentTimeMillis();
                 FileWriter putFW = new FileWriter(String.format("put-ops-%d.txt", ts));
                 putOpsF = new BufferedWriter(putFW);
                 FileWriter getFW = new FileWriter(String.format("get-ops-%d.txt", ts));
