@@ -248,10 +248,11 @@ public class HTable implements HTableInterface {
             if(isMonitoring) {
                 putOpsF.close();
                 getOpsF.close();
+            } else {
+                statsF.close();
+                executorPrefetch.shutdownNow();
+                executorPrefetchWithContext.shutdownNow();
             }
-            statsF.close();
-            executorPrefetch.shutdownNow();
-            executorPrefetchWithContext.shutdownNow();
         }
     }
 
