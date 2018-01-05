@@ -137,6 +137,10 @@ public class DataContainer {
         return qualifier;
     }
 
+    public boolean hasQualifier() {
+        return qualifier != null;
+    }
+
     public String getTableStr() {
         return tableStr;
     }

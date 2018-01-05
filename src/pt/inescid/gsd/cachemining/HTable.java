@@ -7,7 +7,6 @@ import com.google.protobuf.ServiceException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
@@ -38,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Properties;
 import java.util.Queue;
@@ -69,7 +69,7 @@ public class HTable implements HTableInterface {
 
     private static Map<String, org.apache.hadoop.hbase.client.HTable> htables = new HashMap<String, org.apache.hadoop.hbase.client.HTable>();
 
-    private static Cache<Cell> cache;
+    private static Cache<Result> cache;
 
     private static SequenceEngine sequenceEngine;
 
@@ -347,10 +347,23 @@ public class HTable implements HTableInterface {
                 // FIXME only considers one table
                 Result[] results = htable.get(gets);
                 for (Result result : results) {
-                    while (result.advance()) {
-                        Cell cell = result.current();
-                        String key = DataContainer.getKey(tableName, cell);
-                        cache.put(key, new CacheEntry<>(cell));
+                    CacheEntry cacheEntry = new CacheEntry(result);
+                    Set<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> mapEntries = result.getNoVersionMap().entrySet();
+                    for(Map.Entry<byte[], NavigableMap<byte[], byte[]>> mapEntry : mapEntries) {
+                        byte[] family = mapEntry.getKey();
+                        // FIXME
+//                        if(!hasQualifier) {
+//                            String key = DataContainer.getKey(tableName, result.getRow(), family);
+//                            log.debug("Adding key to cache: " + key);
+//                            cache.put(key, cacheEntry);
+//                        }
+                        Set<byte[]> qualifiers = mapEntry.getValue().keySet();
+                        for(byte[] qualifier : qualifiers) {
+                            String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
+                            log.debug("Adding key to cache: " + key);
+                            cache.put(key, cacheEntry);
+                        }
+
                     }
                 }
             }
@@ -362,108 +375,8 @@ public class HTable implements HTableInterface {
 
     }
 
-
-//    private List<Cell> fetchFromCache(Get get) {
-//        List<Cell> result = new ArrayList<>();
-//        // List<byte[]> familiesToRemove = new ArrayList<>();
-//
-//        for(byte[] family : get.familySet()) {
-//            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(family);
-//
-//            if(qualifiers != null) {
-//
-//                // List<byte[]> qualifiersToRemove = new ArrayList<>();
-//                for (byte[] qualifier : qualifiers) {
-//                    // String key = DataContainer.getKey(tableName, get.getRow(), family, qualifier);
-//
-//
-//                    // CONTEXT
-//                    boolean prefetchHit = false;
-//                    DataContainer dc = new DataContainer(getTableName(), get.getRow(), family, qualifier);
-//                    List<PrefetchingContext> toRemove = new ArrayList<>();
-//
-//                    synchronized (activeContextsLock) {
-//                        for (PrefetchingContext context : activeContexts) {
-//                            if (context.matches(dc)) {
-//                                if (context.remove(dc)) {
-//                                    countPrefetchHits++;
-//                                    prefetchHit = true;
-//                                }
-//
-//                                // if there is an iterator, it means that we are using progressive fetching
-//                                if (context.getIterator() != null) {
-//                                    context.setLastRequestedDc(dc);
-//                                    prefetchWithContextQueue.add(context);
-//                                    prefetchWithContextSemaphore.release();
-//                                }
-//                            } else {
-//                                toRemove.add(context);
-//                            }
-//                        }
-//                        activeContexts.removeAll(toRemove);
-//                    }
-//                    String key = dc.toString();
-//
-//                    // if there is a prefetch hit, then wait until element is in cache
-//                    CacheEntry<Cell> entry;
-//                    do {
-//                        entry = cache.get(key);
-//                    } while(prefetchHit && entry == null);
-//
-//                    if (entry != null) {
-//                        countCacheHits++;
-//                        result.add(entry.getValue());
-////                        qualifiersToRemove.add(qualifier);
-//                    }
-//                }
-////                qualifiers.removeAll(qualifiersToRemove);
-////                if (qualifiers.size() == 0) {
-////                    familiesToRemove.add(family);
-////                }
-//
-//            } else {
-//                // String key = DataContainer.getKey(tableName, get.getRow(), family);
-//
-//                // CONTEXT
-//                DataContainer dc = new DataContainer(getTableName(), get.getRow(), family);
-//                List<PrefetchingContext> toRemove = new ArrayList<>();
-//                for(PrefetchingContext context : activeContexts) {
-//                    if(context.matches(dc)) {
-//                        if(context.remove(dc)) {
-//                            countPrefetchHits++;
-//                        }
-//
-//                        // if there is an iterator, it means that we are using progressive fetching
-//                        if(context.getIterator() != null) {
-//                            prefetchWithContextQueue.add(context);
-//                            prefetchWithContextSemaphore.release();
-//                        }
-//                    } else {
-//                        toRemove.add(context);
-//                    }
-//                }
-//                activeContexts.removeAll(toRemove);
-//                String key = dc.toString();
-//                //
-//
-//                CacheEntry<Cell> entry = cache.get(key);
-//                if (entry != null) {
-//                    countCacheHits++;
-//                    result.add(entry.getValue());
-//  //                  familiesToRemove.add(family);
-//                }
-//            }
-//        }
-//
-////        for (byte[] family : familiesToRemove) {
-////            get.getFamilyMap().remove(family);
-////        }
-//
-//        return result;
-//    }
-
-    private List<Cell> fetchFromCache(DataContainer dc) {
-        List<Cell> result = new ArrayList<>();
+    private Result fetchFromCache(DataContainer dc) {
+        Result result = null;
 
         // CONTEXT
         boolean prefetchHit = false;
@@ -494,13 +407,14 @@ public class HTable implements HTableInterface {
         String key = dc.toString();
         log.debug("Getting key from cache: " + key);
         // if there is a prefetch hit, then actively wait until element is in cache
-        CacheEntry<Cell> entry;
+        CacheEntry<Result> entry;
         do {
             entry = cache.get(key);
         } while (prefetchHit && entry == null);
         if (entry != null) {
             countCacheHits++;
-            result.add(entry.getValue());
+            result =  new Result();
+            result.copyFrom(entry.getValue());
         }
 
         return result;
@@ -580,13 +494,24 @@ public class HTable implements HTableInterface {
                     Result[] results = htables.get(tableName).get(entry.getValue());
 
                     for (Result result : results) {
-                        while (result.advance()) {
-                            Cell cell = result.current();
-                            String key = hasQualifier ? DataContainer.getKey(entry.getKey(), cell) :
-                                    DataContainer.getKeyWithoutQualifier(entry.getKey(), cell);
-                            log.debug("Adding key to cache: " + key);
-                            cache.put(key, new CacheEntry<>(cell));
+                        CacheEntry cacheEntry = new CacheEntry(result);
+                        Set<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> mapEntries = result.getNoVersionMap().entrySet();
+                        for(Map.Entry<byte[], NavigableMap<byte[], byte[]>> mapEntry : mapEntries) {
+                            byte[] family = mapEntry.getKey();
+                            if(!hasQualifier) {
+                                String key = DataContainer.getKey(tableName, result.getRow(), family);
+                                log.debug("Adding key to cache: " + key);
+                                cache.put(key, cacheEntry);
+                            }
+                            Set<byte[]> qualifiers = mapEntry.getValue().keySet();
+                            for(byte[] qualifier : qualifiers) {
+                                String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
+                                log.debug("Adding key to cache: " + key);
+                                cache.put(key, cacheEntry);
+                            }
+
                         }
+
                     }
                 }
 
@@ -685,23 +610,28 @@ public class HTable implements HTableInterface {
         }
 
         // fetch items from cache
-        List<Cell> result = fetchFromCache(dc);
+        Result result = fetchFromCache(dc);
 
-        if(result.isEmpty()) {
+        if(result == null) {
             // prefetch sequences in the background asynchronously
             prefetchQueue.add(dc);
             prefetchSemaphore.release();
 
             countFetch++;
-            Result partialResult = htable.get(get);
-            // add fetched result to cache
-            while(partialResult.advance()) {
-                Cell cell = partialResult.current();
-                String key = DataContainer.getKey(tableName, cell);
-                cache.put(key, new CacheEntry<>(cell));
-            }
+            result = htable.get(get);
 
-            result.addAll(partialResult.listCells());
+            // add fetched result to cache
+            Result clonedResult = new Result();
+            clonedResult.copyFrom(result);
+            CacheEntry entry = new CacheEntry<>(clonedResult);
+            cache.put(dc.toString(), entry);
+
+            if(!dc.hasQualifier()) {
+                for(byte[] qualifier : result.getFamilyMap(dc.getFamily()).keySet()) {
+                    String key = DataContainer.getKey(dc.getTableStr(), dc.getRow(), dc.getFamily(), qualifier);
+                    cache.put(key, entry);
+                }
+            }
         }
 
         countGets++;
@@ -714,7 +644,7 @@ public class HTable implements HTableInterface {
                 countPrefetch + "," + countPrefetchHits);
         statsF.newLine();
 
-        return new Result().create(result);
+        return result;
     }
 
     @Override
@@ -739,8 +669,6 @@ public class HTable implements HTableInterface {
 
     @Override
     public ResultScanner getScanner(Scan scan) throws IOException {
-
-
         // unfold scan into multiple gets
         ResultScanner results = htable.getScanner(scan);
 
