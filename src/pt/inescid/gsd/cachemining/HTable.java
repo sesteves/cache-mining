@@ -466,8 +466,10 @@ public class HTable implements HTableInterface {
         List<PrefetchingContext> toRemove = new ArrayList<>();
 
         synchronized (activeContextsLock) {
+            log.debug("Number of active contexts: " + activeContexts.size());
             for (PrefetchingContext context : activeContexts) {
                 if (context.matches(dc)) {
+                    log.debug("There is a context match for dc: " + dc.toString());
                     if (context.remove(dc)) {
                         countPrefetchHits++;
                         prefetchHit = true;
@@ -486,7 +488,7 @@ public class HTable implements HTableInterface {
             activeContexts.removeAll(toRemove);
         }
         String key = dc.toString();
-
+        log.debug("Getting key from cache: " + key);
         // if there is a prefetch hit, then actively wait until element is in cache
         CacheEntry<Cell> entry;
         do {
@@ -533,6 +535,8 @@ public class HTable implements HTableInterface {
                     DataContainer item = itemsIt.next();
                     hasQualifier = item.getQualifier() != null;
 
+                    log.debug("Key to prefetch: " + item.toString());
+
                     // TODO make sure current item is not part of get request - sequencing engine does not return 1st item
                     // if either current item is part of the get request or item is in cache, skip it
 //                    if ((tableName.equals(item.getTableStr()) && get.getFamilyMap().containsKey(item.getFamily()) &&
@@ -574,9 +578,9 @@ public class HTable implements HTableInterface {
                     for (Result result : results) {
                         while (result.advance()) {
                             Cell cell = result.current();
-
                             String key = hasQualifier ? DataContainer.getKey(entry.getKey(), cell) :
                                     DataContainer.getKeyWithoutQualifier(entry.getKey(), cell);
+                            log.debug("Adding key to cache: " + key);
                             cache.put(key, new CacheEntry<>(cell));
                         }
                     }
