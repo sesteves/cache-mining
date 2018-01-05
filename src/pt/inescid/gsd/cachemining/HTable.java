@@ -35,7 +35,6 @@ import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -625,7 +624,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
-        log.debug("get CALLED (" + tableName + ":" + Bytes.toString(get.getRow()) + ":"
+        log.debug("get CALLED (" + tableName + ":" + Bytes.toInt(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
         // FIXME do not unfold gets
