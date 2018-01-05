@@ -111,9 +111,9 @@ public class HTable implements HTableInterface {
 
     ExecutorService executorPrefetch, executorPrefetchWithContext;
 
-    private List<PrefetchingContext> activeContexts = new ArrayList<>();
+    private static List<PrefetchingContext> activeContexts = new ArrayList<>();
 
-    private Object activeContextsLock = new Object();
+    private static Object activeContextsLock = new Object();
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
@@ -295,16 +295,16 @@ public class HTable implements HTableInterface {
 
     // for debugging purposes
     private String getColumnsStr(Map<byte[], NavigableSet<byte[]>> familyMap) {
-        String columns = "";
+        StringBuilder sb = new StringBuilder();
         Set<byte[]> families = familyMap.keySet();
         for (byte[] family : families) {
-            columns += ", " + Bytes.toString(family);
+            sb.append(Bytes.toString(family));
             NavigableSet<byte[]> qualifiers = familyMap.get(family);
             if (qualifiers != null)
                 for (byte[] qualifier : qualifiers)
-                    columns += ":" + Bytes.toString(qualifier);
+                    sb.append(":" + Bytes.toString(qualifier));
         }
-        return columns.substring(1);
+        return sb.toString();
     }
 
     private void prefetchWithContext() {
@@ -528,8 +528,10 @@ public class HTable implements HTableInterface {
 
                 // batch updates to the same tables
                 Map<String, List<Get>> gets = new HashMap<>();
+                boolean hasQualifier = false;
                 while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
+                    hasQualifier = item.getQualifier() != null;
 
                     // TODO make sure current item is not part of get request - sequencing engine does not return 1st item
                     // if either current item is part of the get request or item is in cache, skip it
@@ -572,7 +574,9 @@ public class HTable implements HTableInterface {
                     for (Result result : results) {
                         while (result.advance()) {
                             Cell cell = result.current();
-                            String key = DataContainer.getKey(entry.getKey(), cell);
+
+                            String key = hasQualifier ? DataContainer.getKey(entry.getKey(), cell) :
+                                    DataContainer.getKeyWithoutQualifier(entry.getKey(), cell);
                             cache.put(key, new CacheEntry<>(cell));
                         }
                     }

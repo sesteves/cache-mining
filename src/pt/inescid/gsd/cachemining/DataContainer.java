@@ -100,11 +100,15 @@ public class DataContainer {
         StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toInt(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
 
-        // TODO check correctness
         if (cell.getQualifierArray() != null) {
             sb.append(SEPARATOR + Bytes.toString(cell.getQualifier()));
         }
+        return sb.toString();
+    }
 
+    public static String getKeyWithoutQualifier(String tableName, Cell cell) {
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toInt(cell.getRow()) + SEPARATOR +
+                Bytes.toString(cell.getFamily()));
         return sb.toString();
     }
 
