@@ -50,7 +50,7 @@ public class PrefetchingContext {
     }
 
     public boolean matches(DataContainer dc) {
-        if(currentLevel == containersPerLevel.size()) {
+        if(currentLevel >= containersPerLevel.size()) {
             return false;
         }
         boolean result = containersPerLevel.get(currentLevel).contains(dc);

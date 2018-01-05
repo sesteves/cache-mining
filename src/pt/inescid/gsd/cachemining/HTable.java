@@ -87,13 +87,13 @@ public class HTable implements HTableInterface {
 
     private String statsPrefix;
 
-    private Queue<DataContainer> prefetchQueue = new ConcurrentLinkedQueue<>();
+    private static Queue<DataContainer> prefetchQueue = new ConcurrentLinkedQueue<>();
 
-    private Queue<PrefetchingContext> prefetchWithContextQueue = new ConcurrentLinkedQueue<>();
+    private static Queue<PrefetchingContext> prefetchWithContextQueue = new ConcurrentLinkedQueue<>();
 
-    private final Semaphore prefetchSemaphore = new Semaphore(0);
+    private static final Semaphore prefetchSemaphore = new Semaphore(0);
 
-    private final Semaphore prefetchWithContextSemaphore = new Semaphore(0);
+    private static final Semaphore prefetchWithContextSemaphore = new Semaphore(0);
 
     private Thread prefetch = new Thread(new Runnable() {
         @Override
@@ -109,7 +109,7 @@ public class HTable implements HTableInterface {
         }
     });
 
-    ExecutorService executorPrefetch, executorPrefetchWithContext;
+    private static ExecutorService executorPrefetch, executorPrefetchWithContext;
 
     private static List<PrefetchingContext> activeContexts = new ArrayList<>();
 
