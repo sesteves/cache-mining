@@ -117,7 +117,7 @@ public class HTable implements HTableInterface {
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
-        if(isEnabled) {
+        if(isEnabled && !isMonitoring) {
             String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
             String sequencesFName = System.getProperty(SEQUENCES_FILE_KEY, properties.getProperty(SEQUENCES_FILE_KEY));
             sequenceEngine = new SequenceEngine(heuristic, sequencesFName);
@@ -126,7 +126,7 @@ public class HTable implements HTableInterface {
 
     public HTable(Configuration conf, String tableName, List<List<DataContainer>> sequences) throws IOException {
         Properties properties = init(conf, tableName);
-        if (isEnabled) {
+        if (isEnabled && !isMonitoring) {
             String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
             sequenceEngine = new SequenceEngine(heuristic, sequences);
         }
@@ -162,21 +162,23 @@ public class HTable implements HTableInterface {
                 putOpsF = new BufferedWriter(putFW);
                 FileWriter getFW = new FileWriter(String.format("get-ops-%d.txt", ts));
                 getOpsF = new BufferedWriter(getFW);
+            } else {
+
+                cache = new Cache<>(cacheSize);
+
+                executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+                executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+                for (int i = 0; i < NUMBER_OF_THREADS; i++) {
+                    executorPrefetch.execute(prefetch);
+                    executorPrefetchWithContext.execute(prefetchWithContext);
+                }
+
+
+                statsF = new BufferedWriter(new FileWriter(statsFName));
+                statsF.write(STATS_HEADER);
+                statsF.newLine();
+                statsPrefix = cacheSize + ",";
             }
-
-            cache = new Cache<>(cacheSize);
-
-            executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-            executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-            for(int i = 0; i < NUMBER_OF_THREADS; i++) {
-                executorPrefetch.execute(prefetch);
-                executorPrefetchWithContext.execute(prefetchWithContext);
-            }
-
-            statsF = new BufferedWriter(new FileWriter(statsFName));
-            statsF.write(STATS_HEADER);
-            statsF.newLine();
-            statsPrefix = cacheSize + ",";
         }
 
         return properties;
