@@ -576,6 +576,7 @@ public class HTable implements HTableInterface {
                     Result[] results = htables.get(tableName).get(entry.getValue());
 
                     for (Result result : results) {
+                        result.
                         while (result.advance()) {
                             Cell cell = result.current();
                             String key = hasQualifier ? DataContainer.getKey(entry.getKey(), cell) :
@@ -735,6 +736,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public ResultScanner getScanner(Scan scan) throws IOException {
+
 
         // unfold scan into multiple gets
         ResultScanner results = htable.getScanner(scan);
