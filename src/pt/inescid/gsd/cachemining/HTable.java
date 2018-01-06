@@ -649,9 +649,9 @@ public class HTable implements HTableInterface {
             result = htable.get(get);
 
             // add fetched result to cache
-            Result clonedResult = new Result();
-            clonedResult.copyFrom(result);
-            CacheEntry entry = new CacheEntry<>(clonedResult);
+            Result resultClone = new Result();
+            resultClone.copyFrom(result);
+            CacheEntry entry = new CacheEntry<>(resultClone);
             cache.put(dc.toString(), entry);
 
             if(!dc.hasQualifier()) {
