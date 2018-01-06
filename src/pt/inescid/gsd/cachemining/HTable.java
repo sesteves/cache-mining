@@ -256,6 +256,7 @@ public class HTable implements HTableInterface {
                 executorPrefetchWithContext.shutdownNow();
             }
         }
+        log.debug("Table closed: " + tableName);
     }
 
     @Override
@@ -369,9 +370,9 @@ public class HTable implements HTableInterface {
                 }
             }
         } catch (InterruptedException e) {
-            log.debug(e.getMessage());
+            log.error("Exception in prefetchWithContext: " + e.getMessage());
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Exception in prefetchWithContext: " + e.getMessage());
         }
 
     }
@@ -521,9 +522,9 @@ public class HTable implements HTableInterface {
 
             }
         } catch (InterruptedException e) {
-            log.error(e.getMessage());
+            log.error("Exception occurred in prefetch(): " + e.getMessage());
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Exception occurred in prefetch(): " + e.getMessage());
         }
     }
 
@@ -698,17 +699,21 @@ public class HTable implements HTableInterface {
 
     @Override
     public ResultScanner getScanner(byte[] arg0) throws IOException {
-        // FIXME
-        if(1==1)
+        // TODO implement
+        if(1==1) {
+            log.fatal("getScanner(byte[]) should not be called!");
             throw new IOException("getScanner(byte[]) should not be called!");
+        }
         return htable.getScanner(arg0);
     }
 
     @Override
     public ResultScanner getScanner(byte[] arg0, byte[] arg1) throws IOException {
-        // FIXME
-        if(1==1)
+        // TODO implement
+        if(1==1) {
+            log.fatal("getScanner(byte[], byte[]) should not be called!");
             throw new IOException("getScanner(byte[], byte[]) should not be called!");
+        }
         return htable.getScanner(arg0, arg1);
     }
 
@@ -778,6 +783,7 @@ public class HTable implements HTableInterface {
             entry.setValue(Result.create(cells));
         }
         htable.put(put);
+
 //        if (isMonitoring) {
 //            long ts = System.currentTimeMillis();
 //            Set<byte[]> families = put.getFamilyMap().keySet();
