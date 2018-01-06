@@ -4,6 +4,9 @@ public class CacheEntry<T> {
 
     private T value;
 
+    public CacheEntry() {
+    }
+
     public CacheEntry(T value) {
         this.value = value;
     }
@@ -12,4 +15,7 @@ public class CacheEntry<T> {
         return value;
     }
 
+    public void setValue(T value) {
+        this.value = value;
+    }
 }

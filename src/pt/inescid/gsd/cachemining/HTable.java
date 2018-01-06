@@ -6,6 +6,7 @@ import com.google.protobuf.Service;
 import com.google.protobuf.ServiceException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.Append;
 import org.apache.hadoop.hbase.client.Delete;
@@ -763,6 +764,19 @@ public class HTable implements HTableInterface {
 
     @Override
     public void put(Put put) throws IOException {
+        if(isEnabled && !isMonitoring) {
+            CacheEntry<Result> entry = new CacheEntry<>();
+            List<Cell> cells = new ArrayList();
+            CellScanner cellScanner = put.cellScanner();
+            while(cellScanner.advance()) {
+                Cell c = cellScanner.current();
+                String key = DataContainer.getKey(tableName, c);
+                cache.put(key, entry);
+                log.debug("Added key to cache: " + key);
+                cells.add(c);
+            }
+            entry.setValue(Result.create(cells));
+        }
         htable.put(put);
 //        if (isMonitoring) {
 //            long ts = System.currentTimeMillis();
