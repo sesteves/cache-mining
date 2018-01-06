@@ -448,103 +448,100 @@ public class HTable implements HTableInterface {
                 }
                 // context.setContainersPerLevel(itemsIt.getContainersPerLevel());
 
-                while(itemsIt.hasNext()) {
+//                while(itemsIt.hasNext()) {
+//                    DataContainer item = itemsIt.next();
+//
+//                    if (cache.contains(item.toString())) {
+//                        continue;
+//                    }
+//
+//                    Get get = new Get(item.getRow());
+//                    if(item.hasQualifier()) {
+//                        get.addColumn(item.getFamily(), item.getQualifier());
+//                    } else {
+//                        get.addFamily(item.getFamily());
+//                    }
+//                    Result result = htables.get(item.getTableStr()).get(get);
+//                    CacheEntry entry = new CacheEntry(result);
+//                    log.debug("Adding key to cache: " + item.toString());
+//                    cache.put(item.toString(), entry);
+//
+//                    if(!item.hasQualifier()) {
+//                        Set<byte[]> qualifiers = result.getFamilyMap(item.getFamily()).keySet();
+//                        for(byte[] qualifier : qualifiers) {
+//                            String key = DataContainer.getKey(item.getTableStr(), item.getRow(), item.getFamily(), qualifier);
+//                            log.debug("Adding key to cache: " + key);
+//                            cache.put(key, entry);
+//                        }
+//                    }
+//
+//                    countPrefetch++;
+//                    context.add(item);
+//                }
+
+                // batch updates to the same tables
+                Map<String, List<Get>> gets = new HashMap<>();
+                boolean hasQualifier = false;
+                while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
+                    hasQualifier = item.getQualifier() != null;
+
+                    log.debug("Key to prefetch: " + item.toString());
+
+                    // make sure current item is not part of the current get request
 
                     if (cache.contains(item.toString())) {
                         continue;
                     }
 
-                    Get get = new Get(item.getRow());
-                    if(item.hasQualifier()) {
-                        get.addColumn(item.getFamily(), item.getQualifier());
+                    List<Get> tableGets = gets.get(item.getTableStr());
+                    if (tableGets == null) {
+                        tableGets = new ArrayList<>();
+                        gets.put(item.getTableStr(), tableGets);
+                    }
+                    Get g = new Get(item.getRow());
+                    if (item.hasQualifier()) {
+                        g.addColumn(item.getFamily(), item.getQualifier());
                     } else {
-                        get.addFamily(item.getFamily());
+                        g.addFamily(item.getFamily());
                     }
-                    Result result = htables.get(item.getTableStr()).get(get);
-                    CacheEntry entry = new CacheEntry(result);
-                    log.debug("Adding key to cache: " + item.toString());
-                    cache.put(item.toString(), entry);
-
-                    if(!item.hasQualifier()) {
-                        Set<byte[]> qualifiers = result.getFamilyMap(item.getFamily()).keySet();
-                        for(byte[] qualifier : qualifiers) {
-                            String key = DataContainer.getKey(item.getTableStr(), item.getRow(), item.getFamily(), qualifier);
-                            log.debug("Adding key to cache: " + key);
-                            cache.put(key, entry);
-                        }
-                    }
+                    tableGets.add(g);
 
                     countPrefetch++;
                     context.add(item);
                 }
 
-//                // batch updates to the same tables
-//                Map<String, List<Get>> gets = new HashMap<>();
-//
-//                while (itemsIt.hasNext()) {
-//                    DataContainer item = itemsIt.next();
-//                    hasQualifier = item.getQualifier() != null;
-//
-//                    log.debug("Key to prefetch: " + item.toString());
-//
-//                    // if either current item is part of the get request or item is in cache, skip it
-////                    if ((tableName.equals(item.getTableStr()) && get.getFamilyMap().containsKey(item.getFamily()) &&
-////                            get.getFamilyMap().get(item.getFamily()).contains(item.getQualifier())) ||
-////                            cache.contains(item.toString())) {
-////                        continue;
-////                    }
-//                    if (cache.contains(item.toString())) {
-//                        continue;
-//                    }
-//
-//                    List<Get> tableGets = gets.get(item.getTableStr());
-//                    if (tableGets == null) {
-//                        tableGets = new ArrayList<>();
-//                        gets.put(item.getTableStr(), tableGets);
-//                    }
-//                    Get g = new Get(item.getRow());
-//                    if (item.getQualifier() == null) {
-//                        g.addFamily(item.getFamily());
-//                    } else {
-//                        g.addColumn(item.getFamily(), item.getQualifier());
-//                    }
-//                    tableGets.add(g);
-//
-//                    countPrefetch++;
-//                    context.add(item);
+//                if(context.getCount() == 0) {
+//                    activeContexts.remove(context);
 //                }
-//
-////                if(context.getCount() == 0) {
-////                    activeContexts.remove(context);
-////                }
-//
-//                // prefetch elements to cache
-//                for (Map.Entry<String, List<Get>> entry : gets.entrySet()) {
-//                    String tableName = entry.getKey();
-//                    Result[] results = htables.get(tableName).get(entry.getValue());
-//
-//                    for (Result result : results) {
-//                        CacheEntry cacheEntry = new CacheEntry(result);
-//                        Set<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> mapEntries = result.getNoVersionMap().entrySet();
-//                        for(Map.Entry<byte[], NavigableMap<byte[], byte[]>> mapEntry : mapEntries) {
-//                            byte[] family = mapEntry.getKey();
-//                            if(!hasQualifier) {
-//                                String key = DataContainer.getKey(tableName, result.getRow(), family);
-//                                log.debug("Adding key to cache: " + key);
-//                                cache.put(key, cacheEntry);
-//                            }
-//                            Set<byte[]> qualifiers = mapEntry.getValue().keySet();
-//                            for(byte[] qualifier : qualifiers) {
-//                                String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
-//                                log.debug("Adding key to cache: " + key);
-//                                cache.put(key, cacheEntry);
-//                            }
-//
-//                        }
-//
-//                    }
-//                }
+
+                // TODO prefetch elements in order
+                // prefetch elements to cache
+                for (Map.Entry<String, List<Get>> entry : gets.entrySet()) {
+                    String tableName = entry.getKey();
+                    Result[] results = htables.get(tableName).get(entry.getValue());
+
+                    for (Result result : results) {
+                        CacheEntry cacheEntry = new CacheEntry(result);
+                        Set<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> mapEntries = result.getNoVersionMap().entrySet();
+                        for(Map.Entry<byte[], NavigableMap<byte[], byte[]>> mapEntry : mapEntries) {
+                            byte[] family = mapEntry.getKey();
+                            if(!hasQualifier) {
+                                String key = DataContainer.getKey(tableName, result.getRow(), family);
+                                log.debug("Adding key to cache: " + key);
+                                cache.put(key, cacheEntry);
+                            }
+                            Set<byte[]> qualifiers = mapEntry.getValue().keySet();
+                            for(byte[] qualifier : qualifiers) {
+                                String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
+                                log.debug("Adding key to cache: " + key);
+                                cache.put(key, cacheEntry);
+                            }
+
+                        }
+
+                    }
+                }
 
                 long diff = System.currentTimeMillis() - startTick;
                 log.debug("Time taken with prefetching: " + diff);
