@@ -494,16 +494,16 @@ public class HTable implements HTableInterface {
                 boolean hasQualifier = false;
                 while (itemsIt.hasNext()) {
                     DataContainer item = itemsIt.next();
-                    hasQualifier = item.getQualifier() != null;
-
-                    log.debug("Key to prefetch: " + item.toString());
 
                     // make sure current item is not part of the current get request
 
                     if (cache.contains(item.toString())) {
                         continue;
                     }
+                    log.debug("Key to prefetch: " + item.toString());
                     prefetchSet.add(item.toString());
+
+                    hasQualifier = item.getQualifier() != null;
 
                     List<Get> tableGets = gets.get(item.getTableStr());
                     if (tableGets == null) {
@@ -568,39 +568,6 @@ public class HTable implements HTableInterface {
         }
     }
 
-    private String bytesToStr(byte[] arr) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : arr)
-            sb.append(String.format("\\x%02x", b & 0xFF));
-        return sb.toString();
-    }
-
-    private byte[] strToBytes(String str) {
-        byte[] result = new byte[str.length() / 4];
-        for (int i = 2, j = 0; i < str.length(); i += 4, j++)
-            result[j] = (byte) Integer.parseInt(str.substring(i, i + 2), 16);
-        return result;
-    }
-
-
-    private void monitorGet(Get get) throws IOException {
-        long ts = System.currentTimeMillis();
-        String rowStr = "" + Bytes.toHex(get.getRow());
-        Set<byte[]> families = get.familySet();
-        for (byte[] f : families) {
-            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
-            if (qualifiers != null) {
-                for (byte[] q : qualifiers) {
-                    getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
-                    getOpsF.newLine();
-                }
-            } else {
-                getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
-                getOpsF.newLine();
-            }
-        }
-    }
-
     @Override
     public Result get(Get get) throws IOException {
         log.debug("get CALLED (" + tableName + ":" + Bytes.toHex(get.getRow()) + ":"
@@ -651,14 +618,14 @@ public class HTable implements HTableInterface {
             dc = new DataContainer(getTableName(), get.getRow(), first.getKey());
         }
 
+        // prefetch sequences in the background asynchronously
+        prefetchQueue.add(dc);
+        prefetchSemaphore.release();
+
         // fetch items from cache
         Result result = fetchFromCache(dc);
 
         if(result == null) {
-            // prefetch sequences in the background asynchronously
-            prefetchQueue.add(dc);
-            prefetchSemaphore.release();
-
             countFetch++;
             result = htable.get(get);
 
@@ -689,8 +656,48 @@ public class HTable implements HTableInterface {
         return result;
     }
 
+    private String bytesToStr(byte[] arr) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : arr)
+            sb.append(String.format("\\x%02x", b & 0xFF));
+        return sb.toString();
+    }
+
+    private byte[] strToBytes(String str) {
+        byte[] result = new byte[str.length() / 4];
+        for (int i = 2, j = 0; i < str.length(); i += 4, j++)
+            result[j] = (byte) Integer.parseInt(str.substring(i, i + 2), 16);
+        return result;
+    }
+
+
+    private void monitorGet(Get get) throws IOException {
+        long ts = System.currentTimeMillis();
+        String rowStr = "" + Bytes.toHex(get.getRow());
+        Set<byte[]> families = get.familySet();
+        for (byte[] f : families) {
+            NavigableSet<byte[]> qualifiers = get.getFamilyMap().get(f);
+            if (qualifiers != null) {
+                for (byte[] q : qualifiers) {
+                    getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f) + ":" + Bytes.toString(q));
+                    getOpsF.newLine();
+                }
+            } else {
+                getOpsF.write(ts + ":" + tableName + ":" + rowStr + ":" + Bytes.toString(f));
+                getOpsF.newLine();
+            }
+        }
+    }
+
+
     @Override
     public Result[] get(List<Get> arg0) throws IOException {
+        // TODO implement
+        if(1==1) {
+            log.fatal("get(List<Get> arg0) should not be called!");
+            throw new IOException("get(List<Get> arg0) should not be called!");
+        }
+
         return htable.get(arg0);
     }
 
