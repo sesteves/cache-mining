@@ -43,6 +43,7 @@ import java.util.NavigableSet;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,7 +51,7 @@ import java.util.concurrent.Semaphore;
 
 public class HTable implements HTableInterface {
 
-    private final static int NUMBER_OF_THREADS = 4;
+    private final static int NUMBER_OF_THREADS = 8;
 
     private final static String PROPERTIES_FILE = "cachemining.properties";
 
@@ -117,6 +118,8 @@ public class HTable implements HTableInterface {
     private static List<PrefetchingContext> activeContexts = new ArrayList<>();
 
     private static Object activeContextsLock = new Object();
+
+    private static Set<String> prefetchSet = ConcurrentHashMap.newKeySet();
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
@@ -384,28 +387,34 @@ public class HTable implements HTableInterface {
         boolean prefetchHit = false;
         List<PrefetchingContext> toRemove = new ArrayList<>();
 
-        synchronized (activeContextsLock) {
-            log.debug("Number of active contexts: " + activeContexts.size());
-            for (PrefetchingContext context : activeContexts) {
-                if (context.matches(dc)) {
-                    log.debug("There is a context match for dc: " + dc.toString());
-                    if (context.remove(dc)) {
-                        countPrefetchHits++;
-                        prefetchHit = true;
-                    }
 
-                    // if there is an iterator, it means that we are using progressive fetching
-                    if (context.getIterator() != null) {
-                        context.setLastRequestedDc(dc);
-                        prefetchWithContextQueue.add(context);
-                        prefetchWithContextSemaphore.release();
-                    }
-                } else {
-                    toRemove.add(context);
-                }
-            }
-            activeContexts.removeAll(toRemove);
+        if(prefetchSet.remove(dc.toString())) {
+            countPrefetchHits++;
+            prefetchHit = true;
         }
+
+//        synchronized (activeContextsLock) {
+//            log.debug("Number of active contexts: " + activeContexts.size());
+//            for (PrefetchingContext context : activeContexts) {
+//                if (context.matches(dc)) {
+//                    log.debug("There is a context match for dc: " + dc.toString());
+//                    if (context.remove(dc)) {
+//                        countPrefetchHits++;
+//                        prefetchHit = true;
+//                    }
+//
+//                    // if there is an iterator, it means that we are using progressive fetching
+//                    if (context.getIterator() != null) {
+//                        context.setLastRequestedDc(dc);
+//                        prefetchWithContextQueue.add(context);
+//                        prefetchWithContextSemaphore.release();
+//                    }
+//                } else {
+//                    toRemove.add(context);
+//                }
+//            }
+//            activeContexts.removeAll(toRemove);
+//        }
         String key = dc.toString();
         log.debug("Getting key from cache: " + key);
         // if there is a prefetch hit, then actively wait until element is in cache
@@ -441,11 +450,12 @@ public class HTable implements HTableInterface {
                 }
                 log.debug("There are sequences indexed by key '" + dc + "'.");
 
-                // creates prefetching context
-                PrefetchingContext context = new PrefetchingContext(itemsIt);
-                synchronized (activeContextsLock) {
-                    activeContexts.add(context);
-                }
+                // TODO uncomment
+//                // creates prefetching context
+//                PrefetchingContext context = new PrefetchingContext(itemsIt);
+//                synchronized (activeContextsLock) {
+//                    activeContexts.add(context);
+//                }
                 // context.setContainersPerLevel(itemsIt.getContainersPerLevel());
 
 //                while(itemsIt.hasNext()) {
@@ -493,6 +503,7 @@ public class HTable implements HTableInterface {
                     if (cache.contains(item.toString())) {
                         continue;
                     }
+                    prefetchSet.add(item.toString());
 
                     List<Get> tableGets = gets.get(item.getTableStr());
                     if (tableGets == null) {
@@ -508,7 +519,8 @@ public class HTable implements HTableInterface {
                     tableGets.add(g);
 
                     countPrefetch++;
-                    context.add(item);
+                    // TODO uncomment
+//                    context.add(item);
                 }
 
 //                if(context.getCount() == 0) {
@@ -530,12 +542,14 @@ public class HTable implements HTableInterface {
                                 String key = DataContainer.getKey(tableName, result.getRow(), family);
                                 log.debug("Adding key to cache: " + key);
                                 cache.put(key, cacheEntry);
+                                prefetchSet.remove(key);
                             }
                             Set<byte[]> qualifiers = mapEntry.getValue().keySet();
                             for(byte[] qualifier : qualifiers) {
                                 String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
                                 log.debug("Adding key to cache: " + key);
                                 cache.put(key, cacheEntry);
+                                prefetchSet.remove(key);
                             }
 
                         }
