@@ -731,12 +731,12 @@ public class HTable implements HTableInterface {
                     for (byte[] q : qualifiers) {
                         Get get = new Get(row);
                         get.addColumn(f, q);
-                        htable.get(get);
+                        get(get);
                     }
                 } else {
                     Get get = new Get(row);
                     get.addFamily(f);
-                    htable.get(get);
+                    get(get);
                 }
             }
         }
