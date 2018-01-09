@@ -65,7 +65,7 @@ public class HTable implements HTableInterface {
 
     private static final String statsFName = String.format("stats-cache-%d.csv", ts);
 
-    private static final String STATS_HEADER = "cachesize,ngets,hits,negets,npfetch,hitpfetch";
+    private static final String STATS_HEADER = "cachesize,ngets,hits,negets,npfetch,hitpfetch,latency";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -88,8 +88,6 @@ public class HTable implements HTableInterface {
 
     private boolean isMonitoring;
     private boolean isEnabled;
-
-    private String statsPrefix;
 
     private static Queue<DataContainer> prefetchQueue = new ConcurrentLinkedQueue<>();
 
@@ -120,6 +118,8 @@ public class HTable implements HTableInterface {
     private static Object activeContextsLock = new Object();
 
     private static Set<String> prefetchSet = ConcurrentHashMap.newKeySet();
+
+    private int cacheSize;
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
@@ -155,7 +155,7 @@ public class HTable implements HTableInterface {
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
         // cache properties
-        int cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
+        cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
 
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
@@ -182,7 +182,6 @@ public class HTable implements HTableInterface {
                 statsF = new BufferedWriter(new FileWriter(statsFName));
                 statsF.write(STATS_HEADER);
                 statsF.newLine();
-                statsPrefix = cacheSize + ",";
             }
         }
 
@@ -570,6 +569,7 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
+        long startTick = System.nanoTime();
         log.debug("get CALLED (" + tableName + ":" + Bytes.toHex(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
@@ -647,10 +647,13 @@ public class HTable implements HTableInterface {
         double cacheHitRatio = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countFetch / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
-        log.debug("Total gets: " + countGets + ", cache hits: " + countCacheHits + ", fetches: " +
-                countFetch+ ", prefetches: " + countPrefetch + ", prefetch hits: " + countPrefetchHits);
-        statsF.write(statsPrefix + countGets + "," + countCacheHits + "," + countFetch+ "," +
-                countPrefetch + "," + countPrefetchHits);
+
+        long diff = System.nanoTime() - startTick;
+
+        String stats = String.format("%d,%d,%d,%d,%d,%d,%d", cacheSize, countGets, countCacheHits, countFetch,
+                countPrefetch, countPrefetchHits, diff);
+        log.debug("(gets, cache hits, fetches, prefetches, prefetch hits, latency): " + stats);
+        statsF.write(stats);
         statsF.newLine();
 
         return result;
