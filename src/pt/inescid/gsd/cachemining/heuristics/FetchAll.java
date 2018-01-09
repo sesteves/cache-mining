@@ -29,7 +29,9 @@ public class FetchAll extends Heuristic {
         parent = root;
         if(parent.getChildren() != null) {
             currentNode = parent.getChildren().get(currentChild);
-            queue.add(currentNode);
+            if(currentNode.getChildren() != null) {
+                queue.add(currentNode);
+            }
             currentDepth = 1;
 
             // data containers per level
