@@ -65,7 +65,7 @@ public class HTable implements HTableInterface {
 
     private static final String statsFName = String.format("stats-cache-%d.csv", ts);
 
-    private static final String STATS_HEADER = "cachesize,ngets,hits,negets,npfetch,hitpfetch,latency";
+    private static final String STATS_HEADER = "enabled,heuristic,cachesize,ngets,hits,negets,npfetch,hitpfetch,latency";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -119,7 +119,7 @@ public class HTable implements HTableInterface {
 
     private static Set<String> prefetchSet = ConcurrentHashMap.newKeySet();
 
-    private int cacheSize;
+    private static String statsPrefix;
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
@@ -154,9 +154,6 @@ public class HTable implements HTableInterface {
 
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
-        // cache properties
-        cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
-
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
@@ -168,6 +165,11 @@ public class HTable implements HTableInterface {
                 FileWriter getFW = new FileWriter(String.format("get-ops-%d.txt", ts));
                 getOpsF = new BufferedWriter(getFW);
             } else {
+                // cache properties
+                int cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
+
+                // sequence engine properties
+                String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
 
                 cache = new Cache<>(cacheSize);
 
@@ -182,6 +184,7 @@ public class HTable implements HTableInterface {
                 statsF = new BufferedWriter(new FileWriter(statsFName));
                 statsF.write(STATS_HEADER);
                 statsF.newLine();
+                statsPrefix = String.format("%b,%s,%d", isEnabled, heuristic, cacheSize);
             }
         }
 
@@ -569,7 +572,6 @@ public class HTable implements HTableInterface {
 
     @Override
     public Result get(Get get) throws IOException {
-        long startTick = System.nanoTime();
         log.debug("get CALLED (" + tableName + ":" + Bytes.toHex(get.getRow()) + ":"
                 + getColumnsStr(get.getFamilyMap()) + ")");
 
@@ -602,9 +604,17 @@ public class HTable implements HTableInterface {
             return Result.create(cells);
         }
 
+        long startTick = System.nanoTime();
+        countGets++;
 
         if (!isEnabled) {
-            return htable.get(get);
+            Result result = htable.get(get);
+            long diff = System.nanoTime() - startTick;
+            String stats = String.format("%s,%d,,,,,%d", statsPrefix, countGets, diff);
+            statsF.write(stats);
+            statsF.newLine();
+
+            return result;
         }
         if (isMonitoring) {
             monitorGet(get);
@@ -643,16 +653,15 @@ public class HTable implements HTableInterface {
             }
         }
 
-        countGets++;
         double cacheHitRatio = (double) countCacheHits / (double) countGets;
         double effectiveGets = (double) countFetch / (double) countGets;
         double prefetchRatio = (double) countPrefetch / (double) countGets;
 
         long diff = System.nanoTime() - startTick;
 
-        String stats = String.format("%d,%d,%d,%d,%d,%d,%d", cacheSize, countGets, countCacheHits, countFetch,
+        String stats = String.format("%s,%d,%d,%d,%d,%d,%d", statsPrefix, countGets, countCacheHits, countFetch,
                 countPrefetch, countPrefetchHits, diff);
-        log.debug("(gets, cache hits, fetches, prefetches, prefetch hits, latency): " + stats);
+        log.debug("(enabled, heuristic, cache size, gets, cache hits, fetches, prefetches, prefetch hits, latency): " + stats);
         statsF.write(stats);
         statsF.newLine();
 
