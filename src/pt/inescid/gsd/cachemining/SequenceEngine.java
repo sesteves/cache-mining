@@ -37,6 +37,8 @@ public class SequenceEngine {
 
     HeuristicEnum heuristic;
 
+    private List<PrefetchingContext> activeContexts = new ArrayList<>();
+
     /**
      * Create a SequenceEngine with sequences read from a file.
      */
@@ -139,4 +141,7 @@ public class SequenceEngine {
         }
     }
 
+    public boolean matchContext(DataContainer dc) {
+        return false;
+    }
 }

@@ -251,12 +251,12 @@ public class HTable implements HTableInterface {
     @Override
     public void close() throws IOException {
         htable.close();
+        statsF.close();
         if (isEnabled) {
             if(isMonitoring) {
                 putOpsF.close();
                 getOpsF.close();
             } else {
-                statsF.close();
                 executorPrefetch.shutdownNow();
                 executorPrefetchWithContext.shutdownNow();
             }
@@ -339,7 +339,7 @@ public class HTable implements HTableInterface {
                     }
 
                     Get get = new Get(dc.getRow());
-                    if (dc.getQualifier() != null) {
+                    if (dc.hasQualifier()) {
                         get.addColumn(dc.getFamily(), dc.getQualifier());
                     } else {
                         get.addFamily(dc.getFamily());
@@ -395,6 +395,9 @@ public class HTable implements HTableInterface {
             prefetchHit = true;
         }
 
+
+        sequenceEngine.matchContext(dc);
+
 //        synchronized (activeContextsLock) {
 //            log.debug("Number of active contexts: " + activeContexts.size());
 //            for (PrefetchingContext context : activeContexts) {
@@ -417,6 +420,9 @@ public class HTable implements HTableInterface {
 //            }
 //            activeContexts.removeAll(toRemove);
 //        }
+
+
+
         String key = dc.toString();
         log.debug("Getting key from cache: " + key);
         // if there is a prefetch hit, then actively wait until element is in cache
