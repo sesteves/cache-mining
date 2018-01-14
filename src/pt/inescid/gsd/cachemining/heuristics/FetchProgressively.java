@@ -113,7 +113,7 @@ public class FetchProgressively extends Heuristic {
                     }
 
                     // data containers per level
-                    containersPerLevel.add(new HashSet<DataContainer>());
+                    containersPerLevel.add(new HashSet<>());
 
                 } else if (currentNode.getChildren() != null) {
                     set.add(currentNode.getValue());

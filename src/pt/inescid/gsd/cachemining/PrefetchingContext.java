@@ -1,9 +1,7 @@
 package pt.inescid.gsd.cachemining;
 
-import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -15,13 +13,13 @@ public class PrefetchingContext {
 
     private String id = UUID.randomUUID().toString();
 
-    private int count = 0;
+//    private int count = 0;
 
-    private int countHits = 0;
+//    private int countHits = 0;
 
     private int currentLevel = 0;
 
-    private Set<DataContainer> prefetched = new HashSet<>();
+//    private Set<DataContainer> prefetched = new HashSet<>();
 
     private List<Set<DataContainer>> containersPerLevel;
 
@@ -30,24 +28,23 @@ public class PrefetchingContext {
     private DataContainer lastRequestedDc;
 
     public PrefetchingContext(Heuristic iterator) {
-        if(iterator instanceof FetchProgressively) {
-            this.iterator = iterator;
-        }
+        this.iterator = iterator;
         this.containersPerLevel = iterator.getContainersPerLevel();
     }
 
-    public void add(DataContainer dc) {
-        prefetched.add(dc);
-        count++;
-    }
 
-    public boolean remove(DataContainer dc) {
-        if(prefetched.remove(dc)) {
-            countHits++;
-            return true;
-        }
-        return false;
-    }
+//    public void add(DataContainer dc) {
+//        prefetched.add(dc);
+//        count++;
+//    }
+
+//    public boolean remove(DataContainer dc) {
+//        if(prefetched.remove(dc)) {
+//            countHits++;
+//            return true;
+//        }
+//        return false;
+//    }
 
     public boolean matches(DataContainer dc) {
         if(currentLevel >= containersPerLevel.size()) {
@@ -58,13 +55,13 @@ public class PrefetchingContext {
         return result;
     }
 
-    public void setContainersPerLevel(List<Set<DataContainer>> containersPerLevel) {
-        this.containersPerLevel = containersPerLevel;
-    }
+//    public void setContainersPerLevel(List<Set<DataContainer>> containersPerLevel) {
+//        this.containersPerLevel = containersPerLevel;
+//    }
 
-    public int getCount() {
-        return count;
-    }
+//    public int getCount() {
+//        return count;
+//    }
 
     public Heuristic getIterator() {
         return iterator;

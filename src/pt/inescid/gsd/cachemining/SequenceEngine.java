@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static pt.inescid.gsd.cachemining.SequenceEngine.HeuristicEnum.FETCH_PROGRESSIVELY;
+
 public class SequenceEngine {
 
     public enum HeuristicEnum {
@@ -141,7 +143,34 @@ public class SequenceEngine {
         }
     }
 
-    public boolean matchContext(DataContainer dc) {
-        return false;
+    public void createContext(Heuristic iterator) {
+        if(iterator instanceof FetchProgressively) {
+            PrefetchingContext context = new PrefetchingContext(iterator);
+            synchronized (activeContexts) {
+                activeContexts.add(context);
+            }
+        }
+    }
+
+
+    public PrefetchingContext matchContext(DataContainer dc) {
+        if(heuristic != FETCH_PROGRESSIVELY) {
+            return null;
+        }
+
+        List<PrefetchingContext> toRemove = new ArrayList<>();
+        PrefetchingContext result = null;
+        synchronized (activeContexts) {
+            for (PrefetchingContext context : activeContexts) {
+                if (context.matches(dc)) {
+                    context.setLastRequestedDc(dc);
+                    result = context;
+                } else {
+                    toRemove.add(context);
+                }
+            }
+            activeContexts.removeAll(toRemove);
+        }
+        return result;
     }
 }
