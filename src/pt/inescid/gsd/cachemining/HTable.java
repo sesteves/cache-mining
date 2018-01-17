@@ -733,27 +733,27 @@ public class HTable implements HTableInterface {
     @Override
     public ResultScanner getScanner(Scan scan) throws IOException {
         // unfold scan into multiple gets
-        ResultScanner results = htable.getScanner(scan);
-
-        for(Result result : results) {
-            byte[] row = result.getRow();
-
-            Set<byte[]> families = scan.getFamilyMap().keySet();
-            for (byte[] f : families) {
-                NavigableSet<byte[]> qualifiers = scan.getFamilyMap().get(f);
-                if (qualifiers != null) {
-                    for (byte[] q : qualifiers) {
-                        Get get = new Get(row);
-                        get.addColumn(f, q);
-                        get(get);
-                    }
-                } else {
-                    Get get = new Get(row);
-                    get.addFamily(f);
-                    get(get);
-                }
-            }
-        }
+//        ResultScanner results = htable.getScanner(scan);
+//
+//        for(Result result : results) {
+//            byte[] row = result.getRow();
+//
+//            Set<byte[]> families = scan.getFamilyMap().keySet();
+//            for (byte[] f : families) {
+//                NavigableSet<byte[]> qualifiers = scan.getFamilyMap().get(f);
+//                if (qualifiers != null) {
+//                    for (byte[] q : qualifiers) {
+//                        Get get = new Get(row);
+//                        get.addColumn(f, q);
+//                        get(get);
+//                    }
+//                } else {
+//                    Get get = new Get(row);
+//                    get.addFamily(f);
+//                    get(get);
+//                }
+//            }
+//        }
 
         return htable.getScanner(scan);
     }
