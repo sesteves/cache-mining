@@ -405,7 +405,7 @@ public class HTable implements HTableInterface {
                 prefetch(itemsIt);
 
                 long diff = System.currentTimeMillis() - startTick;
-                log.debug("Time taken with prefetching: " + diff);
+//                log.debug("Time taken with prefetching: " + diff);
             }
         } catch (InterruptedException e) {
             log.error("Exception occurred in prefetch(): " + e.getMessage());
@@ -464,7 +464,7 @@ public class HTable implements HTableInterface {
             if (cache.contains(item.toString())) {
                 continue;
             }
-            log.debug("Key to prefetch: " + item.toString());
+//            log.debug("Key to prefetch: " + item.toString());
             prefetchSet.add(item.toString());
 
             hasQualifier = item.getQualifier() != null;
@@ -498,14 +498,14 @@ public class HTable implements HTableInterface {
                     byte[] family = mapEntry.getKey();
                     if(!hasQualifier) {
                         String key = DataContainer.getKey(tableName, result.getRow(), family);
-                        log.debug("Adding key to cache: " + key);
+//                        log.debug("Adding key to cache: " + key);
                         cache.put(key, cacheEntry);
                         prefetchSet.remove(key);
                     }
                     Set<byte[]> qualifiers = mapEntry.getValue().keySet();
                     for(byte[] qualifier : qualifiers) {
                         String key = DataContainer.getKey(tableName, result.getRow(), family, qualifier);
-                        log.debug("Adding key to cache: " + key);
+//                        log.debug("Adding key to cache: " + key);
                         cache.put(key, cacheEntry);
                         prefetchSet.remove(key);
                     }
@@ -555,7 +555,7 @@ public class HTable implements HTableInterface {
 
 
         String key = dc.toString();
-        log.debug("Getting key from cache: " + key);
+//        log.debug("Getting key from cache: " + key);
         Result result = null;
         // if there is a prefetch hit, then actively wait until element is in cache
         CacheEntry<Result> entry;
@@ -564,8 +564,9 @@ public class HTable implements HTableInterface {
         } while (prefetchHit && entry == null);
         if (entry != null) {
             countCacheHits++;
-            result = new Result();
-            result.copyFrom(entry.getValue());
+//            result = new Result();
+//            result.copyFrom(entry.getValue());
+            result = entry.getValue();
         }
 
         return result;
@@ -641,9 +642,9 @@ public class HTable implements HTableInterface {
             result = htable.get(get);
 
             // add fetched result to cache
-            Result resultClone = new Result();
-            resultClone.copyFrom(result);
-            CacheEntry entry = new CacheEntry<>(resultClone);
+//            Result resultClone = new Result();
+//            resultClone.copyFrom(result);
+            CacheEntry entry = new CacheEntry<>(result);
             cache.put(dc.toString(), entry);
 
             if(!dc.hasQualifier()) {
@@ -654,9 +655,9 @@ public class HTable implements HTableInterface {
             }
         }
 
-        double cacheHitRatio = (double) countCacheHits / (double) countGets;
-        double effectiveGets = (double) countFetch / (double) countGets;
-        double prefetchRatio = (double) countPrefetch / (double) countGets;
+//        double cacheHitRatio = (double) countCacheHits / (double) countGets;
+//        double effectiveGets = (double) countFetch / (double) countGets;
+//        double prefetchRatio = (double) countPrefetch / (double) countGets;
 
         long diff = System.nanoTime() - startTick;
 
