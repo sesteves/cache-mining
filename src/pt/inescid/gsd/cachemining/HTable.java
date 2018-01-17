@@ -169,8 +169,8 @@ public class HTable implements HTableInterface {
             } else {
                 cache = new Cache<>(cacheSize);
 
-                executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-                executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+                executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS / 2);
+                executorPrefetchWithContext = Executors.newFixedThreadPool(NUMBER_OF_THREADS / 2);
                 for (int i = 0; i < NUMBER_OF_THREADS; i++) {
                     executorPrefetch.execute(prefetch);
                     executorPrefetchWithContext.execute(prefetchWithContext);
