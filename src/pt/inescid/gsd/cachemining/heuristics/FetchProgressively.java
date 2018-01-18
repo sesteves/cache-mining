@@ -68,6 +68,8 @@ public class FetchProgressively extends Heuristic {
                     if (previousSet != null && previousSet.isEmpty()) {
                         currentNode = null;
                         currentDepth++;
+                        // data containers per level
+                        containersPerLevel.add(new HashSet<>());
                         break;
                     }
                     do {
@@ -76,6 +78,8 @@ public class FetchProgressively extends Heuristic {
                     if(parent == null) {
                         currentNode = null;
                         currentDepth++;
+                        // data containers per level
+                        containersPerLevel.add(new HashSet<>());
                         break;
                     }
 
@@ -88,6 +92,7 @@ public class FetchProgressively extends Heuristic {
                     currentNode = parent.getChildren().get(currentChild);
 
 
+                    // TODO index out of bounds bug
                     // data containers per level
                     containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
 
@@ -115,10 +120,11 @@ public class FetchProgressively extends Heuristic {
                     // data containers per level
                     containersPerLevel.add(new HashSet<>());
 
-                } else if (currentNode.getChildren() != null) {
-                    set.add(currentNode.getValue());
-                    queue.add(currentNode);
-
+                } else {
+                    if (currentNode.getChildren() != null) {
+                        set.add(currentNode.getValue());
+                        queue.add(currentNode);
+                    }
                     // data containers per level
                     containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                 }

@@ -63,10 +63,9 @@ public class FetchTopN extends Heuristic {
                     currentNode = parent.getChildren().get(currentChild);
                     if(currentNode.getChildren() != null) {
                         queue.add(currentNode);
-
-                        // data containers per level
-                        containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                     }
+                    // data containers per level
+                    containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                 } else {
                     currentNode = null;
                     break;
@@ -81,10 +80,9 @@ public class FetchTopN extends Heuristic {
 
                 } else if (currentNode.getChildren() != null) {
                     queue.add(currentNode);
-
-                    // data containers per level
-                    containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                 }
+                // data containers per level
+                containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
             }
         } while (currentNode.getValue() == null);
 

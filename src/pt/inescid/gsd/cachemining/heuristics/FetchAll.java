@@ -59,10 +59,10 @@ public class FetchAll extends Heuristic {
                     currentNode = parent.getChildren().get(currentChild);
                     if(currentNode.getChildren() != null) {
                         queue.add(currentNode);
-
-                        // data containers per level
-                        containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                     }
+                    // data containers per level
+                    containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
+
                 } else {
                     currentNode = null;
                     break;
@@ -73,11 +73,12 @@ public class FetchAll extends Heuristic {
                     currentDepth++;
 
                     // data containers per level
-                    containersPerLevel.add(new HashSet<DataContainer>());
+                    containersPerLevel.add(new HashSet<>());
 
-                } else if (currentNode.getChildren() != null) {
-                    queue.add(currentNode);
-
+                } else {
+                    if (currentNode.getChildren() != null) {
+                        queue.add(currentNode);
+                    }
                     // data containers per level
                     containersPerLevel.get(currentDepth - 1).add(currentNode.getValue());
                 }

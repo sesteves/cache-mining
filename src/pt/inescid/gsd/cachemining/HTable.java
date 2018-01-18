@@ -65,7 +65,8 @@ public class HTable implements HTableInterface {
 
     private static final String statsFName = String.format("stats-cache-%d.csv", ts);
 
-    private static final String STATS_HEADER = "enabled,heuristic,cachesize,ngets,hits,negets,npfetch,hitpfetch,latency";
+    private static final String STATS_HEADER =
+            "enabled,heuristic,cachesize,ngets,hits,negets,npfetch,hitpfetch,hitmpfetch,latency";
 
     private Logger log = Logger.getLogger(HTable.class);
 
@@ -84,7 +85,7 @@ public class HTable implements HTableInterface {
     private static BufferedWriter statsF;
 
     private static int countGets = 0, countCacheHits = 0, countFetch = 0, countPrefetch = 0,
-            countPrefetchHits = 0;
+            countPrefetchHits = 0, countMultiplePrefetchHits = 0;
 
     private boolean isMonitoring;
     private boolean isEnabled;
@@ -415,6 +416,7 @@ public class HTable implements HTableInterface {
     }
 
     private void prefetch(Heuristic iterator) throws IOException {
+        // elements are prefetched in order
 //                // creates prefetching context
 //                PrefetchingContext context = new PrefetchingContext(itemsIt);
 //                synchronized (activeContextsLock) {
@@ -485,14 +487,13 @@ public class HTable implements HTableInterface {
             countPrefetch++;
         }
 
-        // TODO prefetch elements in order
         // prefetch elements to cache
         for (Map.Entry<String, List<Get>> entry : gets.entrySet()) {
             String tableName = entry.getKey();
             Result[] results = htables.get(tableName).get(entry.getValue());
 
             for (Result result : results) {
-                CacheEntry cacheEntry = new CacheEntry(result);
+                CacheEntry cacheEntry = new CacheEntry(result, true);
                 Set<Map.Entry<byte[], NavigableMap<byte[], byte[]>>> mapEntries = result.getNoVersionMap().entrySet();
                 for(Map.Entry<byte[], NavigableMap<byte[], byte[]>> mapEntry : mapEntries) {
                     byte[] family = mapEntry.getKey();
@@ -518,8 +519,7 @@ public class HTable implements HTableInterface {
     private Result fetchFromCache(DataContainer dc) {
 
         boolean prefetchHit = false;
-        if(prefetchSet.remove(dc.toString())) {
-            countPrefetchHits++;
+        if(prefetchSet.contains(dc.toString())) {
             prefetchHit = true;
         }
 
@@ -563,6 +563,13 @@ public class HTable implements HTableInterface {
             entry = cache.get(key);
         } while (prefetchHit && entry == null);
         if (entry != null) {
+            if(entry.isFromPrefetch()) {
+                if(!entry.isPrefetchHit()) {
+                    countPrefetchHits++;
+                    entry.setPrefetchHit();
+                }
+                countMultiplePrefetchHits++;
+            }
             countCacheHits++;
 //            result = new Result();
 //            result.copyFrom(entry.getValue());
@@ -612,7 +619,7 @@ public class HTable implements HTableInterface {
         if (!isEnabled) {
             Result result = htable.get(get);
             long diff = System.nanoTime() - startTick;
-            String stats = String.format("%s,%d,,,,,%d", statsPrefix, countGets, diff);
+            String stats = String.format("%s,%d,,,,,,%d", statsPrefix, countGets, diff);
             statsF.write(stats);
             statsF.newLine();
 
@@ -661,9 +668,9 @@ public class HTable implements HTableInterface {
 
         long diff = System.nanoTime() - startTick;
 
-        String stats = String.format("%s,%d,%d,%d,%d,%d,%d", statsPrefix, countGets, countCacheHits, countFetch,
-                countPrefetch, countPrefetchHits, diff);
-        log.debug("(enabled, heuristic, cache size, gets, cache hits, fetches, prefetches, prefetch hits, latency): " + stats);
+        String stats = String.format("%s,%d,%d,%d,%d,%d,%d,%d", statsPrefix, countGets, countCacheHits, countFetch,
+                countPrefetch, countPrefetchHits, countMultiplePrefetchHits, diff);
+        log.debug("(enabled, heuristic, cache size, gets, cache hits, fetches, prefetches, prefetch hits, prefetch multiple hits, latency): " + stats);
         statsF.write(stats);
         statsF.newLine();
 
@@ -760,21 +767,11 @@ public class HTable implements HTableInterface {
 
     @Override
     public ResultScanner getScanner(byte[] arg0) throws IOException {
-        // TODO implement
-        if(1==1) {
-            log.fatal("getScanner(byte[]) should not be called!");
-            throw new IOException("getScanner(byte[]) should not be called!");
-        }
         return htable.getScanner(arg0);
     }
 
     @Override
     public ResultScanner getScanner(byte[] arg0, byte[] arg1) throws IOException {
-        // TODO implement
-        if(1==1) {
-            log.fatal("getScanner(byte[], byte[]) should not be called!");
-            throw new IOException("getScanner(byte[], byte[]) should not be called!");
-        }
         return htable.getScanner(arg0, arg1);
     }
 
