@@ -57,7 +57,7 @@ public class FetchProgressively extends Heuristic {
     }
 
     @Override
-    public DataContainer next() {
+    public synchronized DataContainer next() {
         Node result = currentNode;
 
         do {
@@ -139,7 +139,7 @@ public class FetchProgressively extends Heuristic {
 
     }
 
-    public boolean unblock(DataContainer dc) {
+    public synchronized boolean unblock(DataContainer dc) {
         // wait until iterator is no longer in use
         while(hasNext());
 

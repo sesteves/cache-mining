@@ -523,10 +523,12 @@ public class HTable implements HTableInterface {
             prefetchHit = true;
         }
 
-        PrefetchingContext context = sequenceEngine.matchContext(dc);
-        if (context != null) {
-            prefetchWithContextQueue.add(context);
-            prefetchWithContextSemaphore.release();
+        List<PrefetchingContext> contexts = sequenceEngine.matchContext(dc);
+        if (contexts != null) {
+            for(PrefetchingContext context : contexts) {
+                prefetchWithContextQueue.add(context);
+                prefetchWithContextSemaphore.release();
+            }
         }
 
 //        synchronized (activeContextsLock) {

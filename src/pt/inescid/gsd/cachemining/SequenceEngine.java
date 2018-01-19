@@ -153,18 +153,18 @@ public class SequenceEngine {
     }
 
 
-    public PrefetchingContext matchContext(DataContainer dc) {
+    public List<PrefetchingContext> matchContext(DataContainer dc) {
         if(heuristic != FETCH_PROGRESSIVELY) {
             return null;
         }
 
         List<PrefetchingContext> toRemove = new ArrayList<>();
-        PrefetchingContext result = null;
+        List<PrefetchingContext> result = new ArrayList<>();
         synchronized (activeContexts) {
             for (PrefetchingContext context : activeContexts) {
                 if (context.matches(dc)) {
                     context.setLastRequestedDc(dc);
-                    result = context;
+                    result.add(context);
                 } else {
                     toRemove.add(context);
                 }
