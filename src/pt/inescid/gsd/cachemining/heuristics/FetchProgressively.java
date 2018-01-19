@@ -59,7 +59,7 @@ public class FetchProgressively extends Heuristic {
     }
 
     @Override
-    public DataContainer next() {
+    public synchronized DataContainer next() {
         Node result = currentNode;
 
         do {
