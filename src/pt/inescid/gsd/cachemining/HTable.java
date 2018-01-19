@@ -559,8 +559,13 @@ public class HTable implements HTableInterface {
         Result result = null;
         // if there is a prefetch hit, then actively wait until element is in cache
         CacheEntry<Result> entry;
+        long startTick = System.currentTimeMillis();
         do {
             entry = cache.get(key);
+            if(System.currentTimeMillis() - startTick > 3000) {
+                log.fatal("Blocked for more than 3 seconds while waiting for cache key: " + key);
+                break;
+            }
         } while (prefetchHit && entry == null);
         if (entry != null) {
             if(entry.isFromPrefetch()) {
