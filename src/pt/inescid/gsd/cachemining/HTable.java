@@ -391,7 +391,7 @@ public class HTable implements HTableInterface {
                 prefetchSemaphore.acquire();
                 DataContainer dc = prefetchQueue.poll();
 
-                long startTick = System.currentTimeMillis();
+//                long startTick = System.currentTimeMillis();
 
                 // get sequences matching firstItem
                 Heuristic itemsIt = sequenceEngine.getSequences(dc);
@@ -405,7 +405,7 @@ public class HTable implements HTableInterface {
 
                 prefetch(itemsIt);
 
-                long diff = System.currentTimeMillis() - startTick;
+//                long diff = System.currentTimeMillis() - startTick;
 //                log.debug("Time taken with prefetching: " + diff);
             }
         } catch (InterruptedException e) {

@@ -35,6 +35,8 @@ public class FetchProgressively extends Heuristic {
 
     private Set<DataContainer> set = new HashSet<>();
 
+    private boolean inUse = false;
+
     public FetchProgressively(Node root) {
         parent = root;
         if(parent.getChildren() != null) {
@@ -57,7 +59,7 @@ public class FetchProgressively extends Heuristic {
     }
 
     @Override
-    public synchronized DataContainer next() {
+    public DataContainer next() {
         Node result = currentNode;
 
         do {
