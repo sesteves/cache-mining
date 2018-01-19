@@ -149,17 +149,16 @@ public class HTable implements HTableInterface {
         isMonitoring = Boolean.parseBoolean(System.getProperty(MONITORING_KEY, properties.getProperty(MONITORING_KEY)));
         isEnabled = Boolean.parseBoolean(System.getProperty(ENABLED_KEY, properties.getProperty(ENABLED_KEY)));
 
-        // cache properties
-        int cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
-
-        // sequence engine properties
-        String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
-
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
         htables.put(tableName, htable);
+
+        statsF = new BufferedWriter(new FileWriter(statsFName));
+        statsF.write(STATS_HEADER);
+        statsF.newLine();
+        statsPrefix = String.format("%b,,", isEnabled);
 
         if(isEnabled) {
             if(isMonitoring) {
@@ -168,6 +167,12 @@ public class HTable implements HTableInterface {
                 FileWriter getFW = new FileWriter(String.format("get-ops-%d.txt", ts));
                 getOpsF = new BufferedWriter(getFW);
             } else {
+                // cache properties
+                int cacheSize = Integer.parseInt(System.getProperty(CACHE_SIZE_KEY, properties.getProperty(CACHE_SIZE_KEY)));
+
+                // sequence engine properties
+                String heuristic = System.getProperty(HEURISTIC_KEY, properties.getProperty(HEURISTIC_KEY));
+
                 cache = new Cache<>(cacheSize);
 
                 executorPrefetch = Executors.newFixedThreadPool(NUMBER_OF_THREADS / 2);
@@ -176,14 +181,9 @@ public class HTable implements HTableInterface {
                     executorPrefetch.execute(prefetch);
                     executorPrefetchWithContext.execute(prefetchWithContext);
                 }
-
+                statsPrefix = String.format("%b,%s,%d", isEnabled, heuristic, cacheSize);
             }
         }
-        statsF = new BufferedWriter(new FileWriter(statsFName));
-        statsF.write(STATS_HEADER);
-        statsF.newLine();
-        statsPrefix = String.format("%b,%s,%d", isEnabled, heuristic, cacheSize);
-
 
         return properties;
     }
