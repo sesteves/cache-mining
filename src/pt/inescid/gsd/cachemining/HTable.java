@@ -117,7 +117,6 @@ public class HTable implements HTableInterface {
     private static Set<String> prefetchSet = ConcurrentHashMap.newKeySet();
 
     private static String statsPrefix;
-    private int sumBytes = 0, countContainers = 0;
 
     public HTable(Configuration conf, String tableName) throws IOException {
         Properties properties = init(conf, tableName);
@@ -248,8 +247,6 @@ public class HTable implements HTableInterface {
 
     @Override
     public void close() throws IOException {
-        // TODO remove
-        log.debug("Average container size: " + ((double)sumBytes / (double)countContainers));
         htable.close();
         statsF.close();
         if (isEnabled) {
@@ -632,14 +629,6 @@ public class HTable implements HTableInterface {
             String stats = String.format("%s,%d,,,,,,%d", statsPrefix, countGets, diff);
             statsF.write(stats);
             statsF.newLine();
-
-            Result newResult = new Result();
-            newResult.copyFrom(result);
-            while(newResult.advance()) {
-                Cell cell = newResult.current();
-                sumBytes = cell.getValueLength();
-                countContainers++;
-            }
 
             return result;
         }
