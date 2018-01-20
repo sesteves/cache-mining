@@ -51,7 +51,7 @@ import java.util.concurrent.Semaphore;
 
 public class HTable implements HTableInterface {
 
-    private final static int NUMBER_OF_THREADS = 8;
+    private final static int NUMBER_OF_THREADS = 16;
 
     private final static String PROPERTIES_FILE = "cachemining.properties";
 
