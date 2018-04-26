@@ -1,11 +1,14 @@
 package pt.inescid.gsd.cachemining;
 
+import ca.pfv.spmf.algorithms.sequentialpatterns.spam.AlgoSPAM;
+import ca.pfv.spmf.algorithms.sequentialpatterns.spam.AlgoVMSP;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import pt.inescid.gsd.cachemining.heuristics.FetchAll;
 import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.FetchTopN;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
+import sun.plugin2.main.server.ClientJVMSelectionParameters;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -139,6 +142,12 @@ public class SequenceEngine {
      * @param sequencesFName the sequence file to load sequences from
      */
     public void refreshSequences(String sequencesFName) {
+
+
+        AlgoVMSP algo = new AlgoVMSP();
+
+
+
         this.sequences.clear();
         loadSequences(sequencesFName);
     }
