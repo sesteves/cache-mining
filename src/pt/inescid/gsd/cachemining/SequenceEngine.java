@@ -47,34 +47,7 @@ public class SequenceEngine {
     public SequenceEngine(String heuristicStr, String sequencesFName) {
         PropertyConfigurator.configure("cachemining-log4j.properties");
         heuristic = HeuristicEnum.getHeuristicEnum(heuristicStr);
-
-        List<List<DataContainer>> sequences = new ArrayList<>();
-        try {
-            BufferedReader br = new BufferedReader(new FileReader(sequencesFName));
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] items = line.split(" ");
-
-                List<DataContainer> sequence = new ArrayList<>();
-                for(String item : items) {
-                    String[] els = item.split(":");
-                    if(els.length == 4) {
-                        sequence.add(new DataContainer(els[0], els[1], els[2], els[3]));
-                    } else {
-                        sequence.add(new DataContainer(els[0], els[1], els[2]));
-                    }
-                }
-                sequences.add(sequence);
-            }
-            br.close();
-
-        } catch (FileNotFoundException e) {
-            log.fatal(e.getMessage());
-        } catch (IOException e) {
-            log.fatal(e.getMessage());
-        }
-
-        loadSequences(sequences);
+        loadSequences(sequencesFName);
     }
 
     /**
@@ -127,6 +100,49 @@ public class SequenceEngine {
 
         log.info("Loaded " + sequences.size() + " sequences. Heuristic in use: " + heuristic);
     }
+
+
+    private void loadSequences(String sequencesFName) {
+        List<List<DataContainer>> sequences = new ArrayList<>();
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(sequencesFName));
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] items = line.split(" ");
+
+                List<DataContainer> sequence = new ArrayList<>();
+                for(String item : items) {
+                    String[] els = item.split(":");
+                    if(els.length == 4) {
+                        sequence.add(new DataContainer(els[0], els[1], els[2], els[3]));
+                    } else {
+                        sequence.add(new DataContainer(els[0], els[1], els[2]));
+                    }
+                }
+                sequences.add(sequence);
+            }
+            br.close();
+
+        } catch (FileNotFoundException e) {
+            log.fatal(e.getMessage());
+        } catch (IOException e) {
+            log.fatal(e.getMessage());
+        }
+
+        loadSequences(sequences);
+    }
+
+
+    /**
+     *
+     *
+     * @param sequencesFName the sequence file to load sequences from
+     */
+    public void refreshSequences(String sequencesFName) {
+        this.sequences.clear();
+        loadSequences(sequencesFName);
+    }
+
 
     public Heuristic getSequences(DataContainer key) {
         Node root = sequences.get(key);
