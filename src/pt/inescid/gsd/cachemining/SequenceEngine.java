@@ -1,14 +1,11 @@
 package pt.inescid.gsd.cachemining;
 
-import ca.pfv.spmf.algorithms.sequentialpatterns.spam.AlgoSPAM;
-import ca.pfv.spmf.algorithms.sequentialpatterns.spam.AlgoVMSP;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import pt.inescid.gsd.cachemining.heuristics.FetchAll;
 import pt.inescid.gsd.cachemining.heuristics.FetchProgressively;
 import pt.inescid.gsd.cachemining.heuristics.FetchTopN;
 import pt.inescid.gsd.cachemining.heuristics.Heuristic;
-import sun.plugin2.main.server.ClientJVMSelectionParameters;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -105,7 +102,7 @@ public class SequenceEngine {
     }
 
 
-    private void loadSequences(String sequencesFName) {
+    public void loadSequences(String sequencesFName) {
         List<List<DataContainer>> sequences = new ArrayList<>();
         try {
             BufferedReader br = new BufferedReader(new FileReader(sequencesFName));
@@ -135,23 +132,17 @@ public class SequenceEngine {
         loadSequences(sequences);
     }
 
-
-    /**
-     *
-     *
-     * @param sequencesFName the sequence file to load sequences from
-     */
-    public void refreshSequences(String sequencesFName) {
-
-
-        AlgoVMSP algo = new AlgoVMSP();
-
-
-
-        this.sequences.clear();
-        loadSequences(sequencesFName);
-    }
-
+//    public void refreshSequences(String sequencesFName) {
+//
+//        AlgoVMSP algo = new AlgoVMSP();
+//        try {
+//            algo.runAlgorithm(sequencesFName, "out", 0.01);
+//        } catch (IOException e) {
+//            log.fatal(e.getMessage());
+//        }
+//
+//        loadSequences(sequencesFName);
+//    }
 
     public Heuristic getSequences(DataContainer key) {
         Node root = sequences.get(key);
