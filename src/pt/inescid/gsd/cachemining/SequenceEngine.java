@@ -132,8 +132,8 @@ public class SequenceEngine {
         loadSequences(sequences);
     }
 
-//    public void refreshSequences(String sequencesFName) {
-//
+    public void updateSequences(List<List<DataContainer>> sequences) {
+
 //        AlgoVMSP algo = new AlgoVMSP();
 //        try {
 //            algo.runAlgorithm(sequencesFName, "out", 0.01);
@@ -142,7 +142,7 @@ public class SequenceEngine {
 //        }
 //
 //        loadSequences(sequencesFName);
-//    }
+    }
 
     public Heuristic getSequences(DataContainer key) {
         Node root = sequences.get(key);

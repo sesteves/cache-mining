@@ -188,6 +188,10 @@ public class HTable implements HTableInterface {
         return properties;
     }
 
+    public void updateSequences(List<List<DataContainer>> sequences) {
+        sequenceEngine.updateSequences(sequences);
+    }
+
     public void markTransaction() throws IOException {
         if (!(isEnabled && isMonitoring))
             return;
