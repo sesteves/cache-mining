@@ -67,6 +67,11 @@ public class SequenceEngine {
      * @param sequences the sequences to be used
      */
     private void loadSequences(List<List<DataContainer>> sequences) {
+        if(sequences == null) {
+            log.info("No sequences loaded. Heuristic in use: " + heuristic);
+            return;
+        }
+
         for(List<DataContainer> sequence : sequences) {
             Node parent = null;
             for(int i = 0; i < sequence.size(); i++) {
