@@ -133,15 +133,8 @@ public class SequenceEngine {
     }
 
     public void updateSequences(List<List<DataContainer>> sequences) {
-
-//        AlgoVMSP algo = new AlgoVMSP();
-//        try {
-//            algo.runAlgorithm(sequencesFName, "out", 0.01);
-//        } catch (IOException e) {
-//            log.fatal(e.getMessage());
-//        }
-//
-//        loadSequences(sequencesFName);
+        this.sequences.clear();
+        loadSequences(sequences);
     }
 
     public Heuristic getSequences(DataContainer key) {
