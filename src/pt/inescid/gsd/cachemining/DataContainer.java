@@ -32,7 +32,8 @@ public class DataContainer {
 
         this.table = Bytes.toBytes(table);
         // FIXME
-        this.row = Bytes.fromHex(row);
+        // this.row = Bytes.fromHex(row);
+        this.row = Bytes.toBytes(row);
         this.family = Bytes.toBytes(family);
         this.qualifier = Bytes.toBytes(qualifier);
 
@@ -46,7 +47,8 @@ public class DataContainer {
 
         this.table = Bytes.toBytes(table);
         // FIXME
-        this.row = Bytes.fromHex(row);
+        // this.row = Bytes.fromHex(row);
+        this.row = Bytes.toBytes(row);
         this.family = Bytes.toBytes(family);
 
         buildStringRepresentation();
@@ -65,7 +67,8 @@ public class DataContainer {
 
         this.tableStr = Bytes.toString(table);
         // FIXME
-        this.rowStr = "" + Bytes.toHex(row);
+        // this.rowStr = "" + Bytes.toHex(row);
+        this.rowStr = "" + Bytes.toString(row);
         this.familyStr = Bytes.toString(family);
         this.qualifierStr = Bytes.toString(qualifier);
 
@@ -79,7 +82,8 @@ public class DataContainer {
 
         this.tableStr = Bytes.toString(table);
         // FIXME
-        this.rowStr = "" + Bytes.toHex(row);
+        // this.rowStr = "" + Bytes.toHex(row);
+        this.rowStr = "" + Bytes.toString(row);
         this.familyStr = Bytes.toString(family);
 
         buildStringRepresentation();
@@ -97,7 +101,9 @@ public class DataContainer {
 
     // TODO change deprecated methods
     public static String getKey(String tableName, Cell cell) {
-        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
+//        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
+//                Bytes.toString(cell.getFamily()));
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toString(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
 
         if (cell.getQualifierArray() != null) {
@@ -107,18 +113,24 @@ public class DataContainer {
     }
 
     public static String getKeyWithoutQualifier(String tableName, Cell cell) {
-        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
+//        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toHex(cell.getRow()) + SEPARATOR +
+//                Bytes.toString(cell.getFamily()));
+        StringBuilder sb = new StringBuilder(tableName + SEPARATOR + Bytes.toString(cell.getRow()) + SEPARATOR +
                 Bytes.toString(cell.getFamily()));
         return sb.toString();
     }
 
     public static String getKey(String tableName, byte[] row, byte[] family) {
-        return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family);
+        // return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family);
+        return tableName + SEPARATOR + Bytes.toString(row) + SEPARATOR + Bytes.toString(family);
     }
 
     public static String getKey(String tableName, byte[] row, byte[] family, byte[] qualifier) {
-        return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
+//        return tableName + SEPARATOR + Bytes.toHex(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
+//                Bytes.toString(qualifier);
+        return tableName + SEPARATOR + Bytes.toString(row) + SEPARATOR + Bytes.toString(family) + SEPARATOR +
                 Bytes.toString(qualifier);
+
     }
 
     public byte[] getTable() {
