@@ -70,6 +70,7 @@ public class Cache<T> {
 
     public synchronized void clear() {
         cache.clear();
+        log.debug("Cache cleared.");
     }
 
     @Override
