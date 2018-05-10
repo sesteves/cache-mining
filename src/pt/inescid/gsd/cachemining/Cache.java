@@ -4,7 +4,6 @@ import org.apache.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
 public class Cache<T> {
 
@@ -67,6 +66,10 @@ public class Cache<T> {
             tail = tail.previous;
             tail.next = null;
         }
+    }
+
+    public synchronized void clear() {
+        cache.clear();
     }
 
     @Override
