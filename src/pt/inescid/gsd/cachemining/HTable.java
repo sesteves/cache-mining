@@ -190,6 +190,9 @@ public class HTable implements HTableInterface {
 
     public void updateSequences(List<List<DataContainer>> sequences) {
         sequenceEngine.updateSequences(sequences);
+    }
+
+    public void clearCache() {
         cache.clear();
     }
 
