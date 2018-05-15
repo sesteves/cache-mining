@@ -60,6 +60,7 @@ public class HTable implements HTableInterface {
     private final static String CACHE_SIZE_KEY = "cache-size";
     private final static String HEURISTIC_KEY = "heuristic";
     private final static String SEQUENCES_FILE_KEY = "sequences-file";
+    private final static String PREFETCH_KEY = "prefetch";
 
     private static long ts = System.currentTimeMillis();
 
@@ -89,6 +90,7 @@ public class HTable implements HTableInterface {
 
     private boolean isMonitoring;
     private boolean isEnabled;
+    private boolean doPrefetch;
 
     private static Queue<DataContainer> prefetchQueue = new ConcurrentLinkedQueue<>();
 
@@ -148,6 +150,7 @@ public class HTable implements HTableInterface {
         // HTable properties
         isMonitoring = Boolean.parseBoolean(System.getProperty(MONITORING_KEY, properties.getProperty(MONITORING_KEY)));
         isEnabled = Boolean.parseBoolean(System.getProperty(ENABLED_KEY, properties.getProperty(ENABLED_KEY)));
+        doPrefetch = Boolean.parseBoolean(System.getProperty(PREFETCH_KEY, properties.getProperty(PREFETCH_KEY)));
 
         log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
 
@@ -531,11 +534,13 @@ public class HTable implements HTableInterface {
             prefetchHit = true;
         }
 
-        List<PrefetchingContext> contexts = sequenceEngine.matchContext(dc);
-        if (contexts != null) {
-            for(PrefetchingContext context : contexts) {
-                prefetchWithContextQueue.add(context);
-                prefetchWithContextSemaphore.release();
+        if(doPrefetch) {
+            List<PrefetchingContext> contexts = sequenceEngine.matchContext(dc);
+            if (contexts != null) {
+                for (PrefetchingContext context : contexts) {
+                    prefetchWithContextQueue.add(context);
+                    prefetchWithContextSemaphore.release();
+                }
             }
         }
 
@@ -653,8 +658,10 @@ public class HTable implements HTableInterface {
         }
 
         // prefetch sequences in the background asynchronously
-        prefetchQueue.add(dc);
-        prefetchSemaphore.release();
+        if(doPrefetch) {
+            prefetchQueue.add(dc);
+            prefetchSemaphore.release();
+        }
 
         // fetch items from cache
         Result result = fetchFromCache(dc);
