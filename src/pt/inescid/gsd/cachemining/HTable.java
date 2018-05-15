@@ -152,7 +152,7 @@ public class HTable implements HTableInterface {
         isEnabled = Boolean.parseBoolean(System.getProperty(ENABLED_KEY, properties.getProperty(ENABLED_KEY)));
         doPrefetch = Boolean.parseBoolean(System.getProperty(PREFETCH_KEY, properties.getProperty(PREFETCH_KEY)));
 
-        log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ")");
+        log.info("HTable (Enabled: " + isEnabled + ", isMonitoring: " + isMonitoring + ", doPrefetch: " + doPrefetch + ")");
 
         this.tableName = tableName;
         htable = new org.apache.hadoop.hbase.client.HTable(conf, tableName);
